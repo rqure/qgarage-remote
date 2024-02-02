@@ -1,0 +1,1 @@
+remoteApp.mount('#remote')

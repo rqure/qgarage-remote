@@ -1,33 +1,40 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
+	"sync"
 	"time"
 
 	qmq "github.com/rqure/qmq/src"
+
+	"github.com/gorilla/websocket"
 )
 
 type WebService struct {
 	clients      map[*websocket.Conn]struct{}
 	clientsMutex sync.Mutex
-	app *qmq.QMQApplication
+	app          *qmq.QMQApplication
 }
 
 func NewWebService() *WebService {
 	return &WebService{
 		clients: make(map[*websocket.Conn]struct{}),
-		app: qmq.NewQMQApplication("garage")
+		app:     qmq.NewQMQApplication("garage"),
 	}
 }
 
 func (w *WebService) Initialize() {
 	w.app.Initialize()
-	
+
 	// Serve static files from the "static" directory
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("./web/css"))))
+	http.Handle("/img/", http.StripPrefix("/img/", http.FileServer(http.Dir("./web/img"))))
+	http.Handle("/js/", http.StripPrefix("/js/", http.FileServer(http.Dir("./web/js"))))
 
 	// Handle WebSocket and other routes
 	http.Handle("/", w)
@@ -35,7 +42,7 @@ func (w *WebService) Initialize() {
 	go func() {
 		err := http.ListenAndServe("0.0.0.0:20000", nil)
 		if err != nil {
-			app.Logger().Panic(fmt.Sprintf("HTTP server error: %v", err))
+			w.app.Logger().Panic(fmt.Sprintf("HTTP server error: %v", err))
 		}
 	}()
 }
@@ -59,9 +66,15 @@ func (w *WebService) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 }
 
 func (w *WebService) onIndexRequest(wr http.ResponseWriter, req *http.Request) {
-	w.schema.GetDatetime()
-	wr.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(wr, w.schema.GetDatetime().AsJSON())
+	index, err := os.ReadFile("web/index.html")
+
+	if err != nil {
+		w.app.Logger().Error(fmt.Sprintf("Error while reading file for path '/': %v", err))
+		return
+	}
+
+	wr.Header().Set("Content-Type", "text/html")
+	wr.Write(index)
 }
 
 func (w *WebService) onWSRequest(wr http.ResponseWriter, req *http.Request) {
@@ -93,11 +106,11 @@ func (w *WebService) onWSRequest(wr http.ResponseWriter, req *http.Request) {
 				continue
 			}
 			if cmd, ok := data["cmd"].(string); ok && cmd == "get" {
-				response := w.schema.GetDatetime().AsJSON()
-				if err := conn.WriteMessage(websocket.TextMessage, []byte(response)); err != nil {
-					w.app.Logger().Error(fmt.Sprintf("Error sending WebSocket message: %v", err))
-					break
-				}
+				// response := w.schema.GetDatetime().AsJSON()
+				// if err := conn.WriteMessage(websocket.TextMessage, []byte(response)); err != nil {
+				// 	w.app.Logger().Error(fmt.Sprintf("Error sending WebSocket message: %v", err))
+				// 	break
+				// }
 			}
 		}
 	}
@@ -127,11 +140,11 @@ func (w *WebService) notifyClients(data interface{}) {
 	}
 }
 
-func main() {	
+func main() {
 	service := NewWebService()
 	service.Initialize()
 	defer service.Deinitialize()
-	
+
 	tickRateMs, err := strconv.Atoi(os.Getenv("TICK_RATE_MS"))
 	if err != nil {
 		tickRateMs = 100
