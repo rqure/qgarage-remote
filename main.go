@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"strconv"
@@ -140,8 +139,6 @@ func main() {
 
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
-
-	log.SetFlags(log.Lmicroseconds)
 
 	ticker := time.NewTicker(time.Duration(tickRateMs) * time.Millisecond)
 	for {
