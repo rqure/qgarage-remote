@@ -19,11 +19,15 @@
 </head>
 
 <body>
-    <div id="desktop" class="c1">
-        <div class="hbox vertical-center horizontal-center", style="height: 95%;">
-            <div id="remote" class="c2 vbox horizontal-center garage-remote", style="flex: 1;">
-                <div class="garage-state vertical-center" style="flex: 1;">{{state}}</div>
-                <div class="garage-button vertical-center" style="flex: 1;">{{button}}</div>
+    <div id="desktop" class="c1 vbox box-items-focused-to-center">
+        <div class="hbox box-items-focused-to-center", style="height: 95%;">
+            <div id="remote" class="c2 vbox box-items-focused-to-center garage-remote", style="flex: 1;">
+                <div style="flex: 1;"></div>
+                <div class="garage-state">{{state}}</div>
+                <div style="flex: 1;"></div>
+                <div class="garage-button c3 vbox box-items-focused-to-center">
+                    Open/Close
+                </div>
             </div>
         </div>
     </div>

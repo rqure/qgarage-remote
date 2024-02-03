@@ -24,16 +24,7 @@ body {
     flex-direction: column;
 }
 
-.vertical-center {
-    margin: 0;
-    position: absolute;
-    top: 50%;
-    -ms-transform: translateY(-50%);
-    transform: translateY(-50%);
-}
-    
-
-.horizontal-center {
+.box-items-focused-to-center {
     align-items: center;
     justify-content: center;
 }
@@ -59,14 +50,34 @@ body {
 }
 
 .garage-remote {
-    width: 1080px;
     max-width: 95%;
+    border-radius: 5%;
 }
 
 .garage-state {
-    
+    font-size: 24px;
 }
 
 .garage-button {
+    height: 70%;
+    margin-bottom: 30px;
+    border-radius: 5%;
+    width: 66%;
     
+    padding: 15px 25px;
+    font-size: 24px;
+    text-align: center;
+    cursor: pointer;
+    outline: none;
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 9px #999;
+}
+
+.garage-button:hover {background-color: #3e8e41}
+
+.garage-button:active {
+  background-color: #3e8e41;
+  box-shadow: 0 5px #666;
+  transform: translateY(3%);
 }
