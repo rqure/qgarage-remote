@@ -20,7 +20,12 @@
 
 <body>
     <div id="desktop" class="c1">
-        <div id="remote"></div>
+        <div class="hbox vertical-center horizontal-center", style="height: 95%;">
+            <div id="remote" class="c2 vbox horizontal-center garage-remote", style="flex: 1;">
+                <div class="garage-state vertical-center" style="flex: 1;">{{state}}</div>
+                <div class="garage-button vertical-center" style="flex: 1;">{{button}}</div>
+            </div>
+        </div>
     </div>
 
     <script src="js/lib/notifications/notification_listener.js"></script>

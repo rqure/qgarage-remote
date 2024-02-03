@@ -1,32 +1,32 @@
-class ClockGatewayListener extends NotificationListener {
+class RemoteServiceListener extends NotificationListener {
     constructor(vm) {
         super()
         this._vm = vm;
     }
 
     onNotification(key, data, context) {
-        this._vm.dt = new Date(data.value);
-        this._vm.time = this._vm.dt.toLocaleTimeString(undefined, {
-            hour: 'numeric',
-            minute: 'numeric'
-        })
-        this._vm.date = this._vm.dt.toLocaleDateString(undefined, {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long'
-        })
+        if (key === "connected") {
+            this._vm.websocketConnected = data.value;
+        } else if (key === "garage:state") {
+            this._vm.state = data.value;
+        } else if (key === "garage:shelly:connected") {
+            this._vm.shellyConnected = data.value;
+        }
     }
 }
 
 const remoteApp = Vue.createApp({
     data() {
+        const listener = new RemoteServiceListener(this);
+
         return {
-            time: "",
-            date: "",
-            dt: "",
+            websocketConnected: false,
+            shellyConnected: false,
+            state: "closed",
             serverInteractor:
                 new ServerInteractor(`ws://${window.location.hostname}:20000/ws`, new NotificationManager()
-                    .addListener('clock-gateway:datetime', new ClockGatewayListener(this)))
+                    .addListener('garage:state', listener)
+                    .addListener('garage:shelly:connected', listener))
         }
     },
     mounted() {

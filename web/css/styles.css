@@ -1,12 +1,3 @@
-/*
- Color pallete:
- #ee4540
- #c72c41
- #801336
- #510a32
- #2d142c
- */
-
 body {
     width: 100vw;
     height: 100vh;
@@ -15,22 +6,34 @@ body {
     color: white;
 }
 
+#desktop {
+    width: 100%;
+    height: 100%;
+}
+
 .hbox {
     display: flex;
     width: 100%;
-    height: 100%;
     gap: 10px;
 }
 
 .vbox {
     display: flex;
-    width: 100%;
     height: 100%;
     gap: 10px;
     flex-direction: column;
 }
 
-.focus-center {
+.vertical-center {
+    margin: 0;
+    position: absolute;
+    top: 50%;
+    -ms-transform: translateY(-50%);
+    transform: translateY(-50%);
+}
+    
+
+.horizontal-center {
     align-items: center;
     justify-content: center;
 }
@@ -55,68 +58,15 @@ body {
     background-color: #ee4540;
 }
 
-.time {
-    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
-    font-size: 4em;
+.garage-remote {
+    width: 1080px;
+    max-width: 95%;
 }
 
-.date {
-    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
-    font-size: 2em;
+.garage-state {
+    
 }
 
-.prayer-name {
-    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
-    font-size: 2.5em;
-    flex: 1;
-    text-align: right;
-}
-
-.prayer-time {
-    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
-    font-size: 1.5em;
-    flex: 1;
-    text-align: center;
-}
-
-#desktop {
-    width: 100%;
-    height: 100%;
-}
-
-#schematic {
-    width: 100%;
-    height: 100%;
-    background-color: #121212;
-}
-
-.schematic-theme-floor {
-    border-color: #363636;
-    fill: #242424;
-}
-
-.schematic-theme-wall {
-    fill: #363636;
-    fill-opacity: 1;    
-}
-
-.schematic-theme-closet  {
-    fill: #232323;
-    border-color: #363636;
-    fill-opacity: 1;    
-}
-
-.schematic-theme-stairs  {
-    fill: #363636;
-    fill-opacity: 0.6;    
-}
-
-.schematic-theme-counters  {
-    fill: red;
-    fill-opacity: 1;    
-}
-
-.schematic-theme-doors  {
-    fill: red;
-    fill-opacity: 1;    
+.garage-button {
+    
 }

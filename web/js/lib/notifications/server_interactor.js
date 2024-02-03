@@ -5,6 +5,11 @@ class ServerInteractor {
         this._url = url;
         this._ws = null;
         this._isConnected = false;
+
+        this._notificationManager.notifyListeners({
+            key: "connected",
+            value: false
+        }, this._context);
     }
 
     get notificationManager() { return this._notificationManager; }
@@ -16,11 +21,21 @@ class ServerInteractor {
     onOpen(event) {
         this._isConnected = true;
 
-        this.sendCommand('get')
+        this._notificationManager.notifyListeners({
+            key: "connected",
+            value: true
+        }, this._context);
+
+        this.sendCommand('get');
     }
 
     onClose(event) {
         this._isConnected = false;
+
+        this._notificationManager.notifyListeners({
+            key: "connected",
+            value: false
+        }, this._context);
 
         this.connect();
     }
