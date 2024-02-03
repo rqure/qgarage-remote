@@ -36,8 +36,8 @@ const remoteApp = Vue.createApp({
 
     },
     computed: {
-        compute() {
-
+        capitalizedState: function() {
+            return this.state.charAt(0).toUpperCase() + this.state.slice(1).toLowerCase();
         }
     }
 })
