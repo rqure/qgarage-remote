@@ -25,7 +25,8 @@
                 <div style="flex: 1;"></div>
                 <div class="garage-state">{{capitalizedState}}</div>
                 <div style="flex: 1;"></div>
-                <div class="garage-button c3 vbox box-items-focused-to-center">
+                <div class="garage-button vbox box-items-focused-to-center"
+                     :class="{'bg-alert': !fullyConnected, 'bg-success': fullyConnected}">
                     Open/Close
                 </div>
             </div>

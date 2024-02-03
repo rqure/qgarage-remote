@@ -38,6 +38,9 @@ const remoteApp = Vue.createApp({
     computed: {
         capitalizedState: function() {
             return this.state.charAt(0).toUpperCase() + this.state.slice(1).toLowerCase();
+        },
+        fullyConnected: function() {
+            return this.websocketConnected && this.shellyConnected;
         }
     }
 })

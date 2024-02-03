@@ -49,6 +49,14 @@ body {
     background-color: #ee4540;
 }
 
+.bg-alert {
+    background-color: #801336;
+}
+
+.bg-success {
+    background-color: #04AA6D;
+}
+
 .garage-remote {
     max-width: 95%;
     border-radius: 5%;
