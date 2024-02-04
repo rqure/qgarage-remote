@@ -26,7 +26,8 @@
                 <div class="garage-state">{{capitalizedState}}</div>
                 <div style="flex: 1;"></div>
                 <div class="garage-button vbox box-items-focused-to-center"
-                     :class="{'bg-alert': !fullyConnected, 'bg-success': fullyConnected}">
+                     :class="{'bg-alert': !fullyConnected, 'bg-success': fullyConnected}"
+                     @click="onButtonClick">
                     Open/Close
                 </div>
             </div>

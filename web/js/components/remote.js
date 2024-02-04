@@ -25,6 +25,7 @@ const remoteApp = Vue.createApp({
             state: "closed",
             serverInteractor:
                 new ServerInteractor(`ws://${window.location.hostname}:20000/ws`, new NotificationManager()
+                    .addListener('connected', listener)
                     .addListener('garage:state', listener)
                     .addListener('garage:shelly:connected', listener))
         }
@@ -33,14 +34,20 @@ const remoteApp = Vue.createApp({
         this.serverInteractor.connect()
     },
     methods: {
-
+        onButtonClick: function() {
+            if (this.state == 'closed') {
+                this.serverInteractor.set('garage:requested-state', 'opened')
+            } else if (this.state == 'opened') {
+                this.serverInteractor.set('garage:requested-state', 'closed')
+            }
+        }
     },
     computed: {
         capitalizedState: function() {
             return this.state.charAt(0).toUpperCase() + this.state.slice(1).toLowerCase();
         },
         fullyConnected: function() {
-            return this.websocketConnected && this.shellyConnected;
+            return this.websocketConnected; // && this.shellyConnected;
         }
     }
 })
