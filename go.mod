@@ -4,7 +4,7 @@ go 1.21.6
 
 require (
 	github.com/gorilla/websocket v1.5.1
-	github.com/rqure/qmq v1.0.17
+	github.com/rqure/qmq v1.0.18
 )
 
 require (
