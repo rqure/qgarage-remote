@@ -44,9 +44,10 @@ func (wsc *WebSocketClient) WriteJSON(v interface{}) {
 }
 
 func (wsc *WebSocketClient) Close() {
-	close(wsc.writeCh)
-	close(wsc.readCh)
+	wsc.connMutex.Lock()
 	wsc.conn.Close()
+	wsc.connMutex.Unlock()
+
 	wsc.wg.Wait()
 }
 
@@ -74,6 +75,9 @@ func (wsc *WebSocketClient) DoPendingReads() {
 			wsc.readCh <- data
 		}
 	}
+
+	close(wsc.writeCh)
+	close(wsc.readCh)
 }
 
 func (wsc *WebSocketClient) DoPendingWrites() {
@@ -104,7 +108,7 @@ type DataUpdateResponse struct {
 }
 
 type WebService struct {
-	clients      map[*websocket.Conn]struct{}
+	clients      map[*websocket.Conn]*WebSocketClient
 	clientsMutex sync.Mutex
 	app          *qmq.QMQApplication
 	schema       Schema
@@ -113,7 +117,7 @@ type WebService struct {
 
 func NewWebService() *WebService {
 	return &WebService{
-		clients: make(map[*websocket.Conn]struct{}),
+		clients: make(map[*websocket.Conn]*WebSocketClient),
 		app:     qmq.NewQMQApplication("garage"),
 	}
 }
@@ -239,19 +243,21 @@ func (w *WebService) onWSRequest(wr http.ResponseWriter, req *http.Request) {
 			}
 		}
 	}
-	
+
 	w.removeClient(conn)
 }
 
-func (w *WebService) addClient(conn *websocket.Conn) {
+func (w *WebService) addClient(conn *websocket.Conn) *WebSocketClient {
 	w.clientsMutex.Lock()
 	defer w.clientsMutex.Unlock()
-	w.clients[conn] = struct{}{}
+	w.clients[conn] = NewWebSocketClient(conn, w.app)
+	return w.clients[conn]
 }
 
 func (w *WebService) removeClient(conn *websocket.Conn) {
 	w.clientsMutex.Lock()
 	defer w.clientsMutex.Unlock()
+	w.clients[conn].Close()
 	delete(w.clients, conn)
 }
 
@@ -259,9 +265,6 @@ func (w *WebService) notifyClients(data interface{}) {
 	w.clientsMutex.Lock()
 	defer w.clientsMutex.Unlock()
 	for conn := range w.clients {
-		err := conn.WriteJSON(data)
-		if err != nil {
-			w.app.Logger().Error(fmt.Sprintf("Error sending WebSocket message: %v", err))
-		}
+		w.clients[conn].WriteJSON(data)
 	}
 }
