@@ -94,8 +94,8 @@ func (wsc *WebSocketClient) DoPendingWrites() {
 }
 
 type Schema struct {
-	GarageState           qmq.QMQString `qmq:"garage:state"`
-	GarageShellyConnected qmq.QMQBool   `qmq:"garage:shelly:connected"`
+	GarageState           *qmq.QMQString `qmq:"garage:state"`
+	GarageShellyConnected *qmq.QMQBool   `qmq:"garage:shelly:connected"`
 }
 
 type KeyValueResponse struct {
@@ -124,6 +124,9 @@ func NewWebService() *WebService {
 
 func (w *WebService) Initialize() {
 	w.app.Initialize()
+
+	w.app.AddConsumer("garage:notifications:state").Initialize()
+	w.app.AddConsumer("garage:notifications:shelly:connected").Initialize()
 
 	// Serve static files from the "static" directory
 	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("./web/css"))))
@@ -154,7 +157,7 @@ func (w *WebService) Tick() {
 	w.schemaMutex.Lock()
 	defer w.schemaMutex.Unlock()
 
-	popped := w.app.Consumer("garage:notifications:state").Pop(&w.schema.GarageState)
+	popped := w.app.Consumer("garage:notifications:state").Pop(w.schema.GarageState)
 	if popped != nil {
 		w.notifyClients(DataUpdateResponse{
 			Data: KeyValueResponse{
@@ -165,7 +168,7 @@ func (w *WebService) Tick() {
 		popped.Ack()
 	}
 
-	popped = w.app.Consumer("garage:notifications:shelly:connected").Pop(&w.schema.GarageShellyConnected)
+	popped = w.app.Consumer("garage:notifications:shelly:connected").Pop(w.schema.GarageShellyConnected)
 	if popped != nil {
 		w.notifyClients(DataUpdateResponse{
 			Data: KeyValueResponse{
