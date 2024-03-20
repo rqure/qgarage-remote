@@ -5,10 +5,34 @@ import (
 	"os/signal"
 	"strconv"
 	"time"
+
+	qmq "github.com/rqure/qmq/src"
 )
 
+type Schema struct {
+	GarageState *qmq.QMQGarageDoorStateEnum `qmq:"garage:state"`
+}
+
+type TickHandler struct{}
+
+func (h *TickHandler) onTick(c qmq.WebServiceContext) {
+	schema := c.Schema().(Schema)
+
+	mqttMessage := new(qmq.QMQMqttMessage)
+	popped := c.App().Consumer("qmq2mqtt:exchange:zigbee2mqtt/garage-door-sensor").Pop(mqttMessage)
+	if popped != nil {
+		c.NotifyClients(qmq.DataUpdateResponse{
+			Data: qmq.KeyValueResponse{
+				Key:   "garage:state",
+				Value: schema.GarageState.String(),
+			},
+		})
+		popped.Ack()
+	}
+}
+
 func main() {
-	service := NewWebService()
+	service := qmq.NewWebService()
 	service.Initialize()
 	defer service.Deinitialize()
 
