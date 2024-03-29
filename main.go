@@ -29,7 +29,7 @@ type GarageDoorSensorJson struct {
 type TickHandler struct{}
 
 func (h *TickHandler) OnTick(c qmq.WebServiceContext) {
-	schema := c.Schema().(Schema)
+	schema := c.Schema().(*Schema)
 
 	mqttMessage := new(qmq.QMQMqttMessage)
 	popped := c.App().Consumer("garage:door-sensor:queue").Pop(mqttMessage)
@@ -63,6 +63,7 @@ func (h *TickHandler) OnTick(c qmq.WebServiceContext) {
 func main() {
 	service := qmq.NewWebService()
 	service.Initialize(new(Schema))
+	service.App().AddConsumer("garage:door-sensor:queue").Initialize()
 	service.AddTickHandler(new(TickHandler))
 	defer service.Deinitialize()
 
