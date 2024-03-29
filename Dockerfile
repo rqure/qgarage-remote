@@ -7,7 +7,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY *.go ./
-COPY web ./
+COPY web /app/web/
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o /qapp
 
