@@ -2,7 +2,7 @@ module github.com/rqure/qgarage
 
 go 1.21.6
 
-require github.com/rqure/qmq v1.0.30
+require github.com/rqure/qmq v1.0.31
 
 require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
