@@ -50,7 +50,7 @@ func (h *TickHandler) OnTick(c qmq.WebServiceContext) {
 		schema.GarageState.Value = qmq.QMQGarageDoorStateEnum_GARAGE_DOOR_STATE_OPEN
 	}
 
-	c.App().Logger().Advise(fmt.Sprintf("Garage door changed to: %s", schema.GarageState.Value.String()))
+	c.App().Logger().Advise(fmt.Sprintf("Garage door state changed to: %s", schema.GarageState.Value.String()))
 
 	c.NotifyClients(qmq.DataUpdateResponse{
 		Data: qmq.KeyValueResponse{
