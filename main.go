@@ -36,6 +36,7 @@ func (h *TickHandler) OnTick(c qmq.WebServiceContext) {
 	if popped == nil {
 		return
 	}
+	defer popped.Ack()
 
 	sensorData := new(GarageDoorSensorJson)
 	err := json.Unmarshal(mqttMessage.Payload, sensorData)
@@ -58,8 +59,6 @@ func (h *TickHandler) OnTick(c qmq.WebServiceContext) {
 			Value: schema.GarageState,
 		},
 	})
-
-	popped.Ack()
 }
 
 func main() {
