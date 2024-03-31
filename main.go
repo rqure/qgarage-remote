@@ -75,6 +75,7 @@ func (h *SetHandler) OnSet(c qmq.WebServiceContext, key string, value interface{
 		return
 	}
 
+	c.App().Logger().Advise(fmt.Sprintf("Garage door requested state changed to: %s", value.(qmq.QMQGarageDoorStateEnum).String()))
 	// c.App().Producer("garage:command:exchange").Push(&qmq.QMQMqttMessage{
 	// 	Topic: "garage/command",
 	// })
