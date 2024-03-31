@@ -23,7 +23,7 @@
         <div class="hbox box-items-focused-to-center", style="height: 95%;">
             <div id="remote" class="c2 vbox box-items-focused-to-center garage-remote", style="flex: 1;">
                 <div style="flex: 1;"></div>
-                <div class="garage-state">{{capitalizedState}}</div>
+                <div class="garage-state">{{stateAsText}}</div>
                 <div style="flex: 1;"></div>
                 <div class="garage-button vbox box-items-focused-to-center"
                      :class="{'bg-alert': !fullyConnected, 'bg-success': fullyConnected}"

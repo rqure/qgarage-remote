@@ -12,7 +12,8 @@ import (
 )
 
 type Schema struct {
-	GarageState *qmq.QMQGarageDoorState `qmq:"garage:state"`
+	GarageState          *qmq.QMQGarageDoorState `qmq:"garage:state"`
+	GarageRequestedState *qmq.QMQGarageDoorState `qmq:"garage:requested-state"`
 }
 
 // Example JSON:
@@ -26,13 +27,15 @@ type GarageDoorSensorJson struct {
 	Voltage           int     `json:"voltage"`
 }
 
+type SetHandler struct{}
+
 type TickHandler struct{}
 
 func (h *TickHandler) OnTick(c qmq.WebServiceContext) {
 	schema := c.Schema().(*Schema)
 
 	mqttMessage := new(qmq.QMQMqttMessage)
-	popped := c.App().Consumer("garage:door-sensor:queue").Pop(mqttMessage)
+	popped := c.App().Consumer("garage:sensor:queue").Pop(mqttMessage)
 	if popped == nil {
 		return
 	}
@@ -61,11 +64,31 @@ func (h *TickHandler) OnTick(c qmq.WebServiceContext) {
 	})
 }
 
+func (h *SetHandler) OnSet(c qmq.WebServiceContext, key string, value interface{}) {
+	schema := c.Schema().(*Schema)
+
+	if key != "garage:requested-state" {
+		return
+	}
+
+	if schema.GarageState.Value == value {
+		return
+	}
+
+	// c.App().Producer("garage:command:exchange").Push(&qmq.QMQMqttMessage{
+	// 	Topic: "garage/command",
+	// })
+}
+
 func main() {
+	os.Setenv("QMQ_ADDR", "localhost:6379")
+
 	service := qmq.NewWebService()
 	service.Initialize(new(Schema))
-	service.App().AddConsumer("garage:door-sensor:queue").Initialize()
+	service.App().AddConsumer("garage:sensor:queue").Initialize()
+	service.App().AddProducer("garage:command:exchange").Initialize(1)
 	service.AddTickHandler(new(TickHandler))
+	service.AddSetHandler(new(SetHandler))
 	defer service.Deinitialize()
 
 	tickRateMs, err := strconv.Atoi(os.Getenv("TICK_RATE_MS"))

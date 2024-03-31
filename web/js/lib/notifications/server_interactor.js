@@ -49,12 +49,20 @@ class ServerInteractor {
     }
 
     sendCommand(command) {
+        if (!this._isConnected) {
+            return;
+        }
+        
         this._ws.send(JSON.stringify({
             cmd: command
         }));
     }
 
     set(key, value) {
+        if (!this._isConnected) {
+            return;
+        }
+
         this._ws.send(JSON.stringify({
             cmd: "set",
             key: key,
