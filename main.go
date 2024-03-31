@@ -71,7 +71,7 @@ func (h *SetHandler) OnSet(c qmq.WebServiceContext, key string, value interface{
 		return
 	}
 
-	if schema.GarageState.Value == value {
+	if schema.GarageState.Value == value.(qmq.QMQGarageDoorStateEnum) {
 		return
 	}
 
