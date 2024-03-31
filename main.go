@@ -87,7 +87,7 @@ func main() {
 	service := qmq.NewWebService()
 	service.Initialize(new(Schema))
 	service.App().AddConsumer("garage:sensor:queue").Initialize()
-	service.App().AddProducer("garage:command:exchange").Initialize(1)
+	service.App().AddProducer("garage:command:exchange").Initialize(10)
 	service.AddTickHandler(new(TickHandler))
 	service.AddSetHandler(new(SetHandler))
 	defer service.Deinitialize()
