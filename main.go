@@ -82,8 +82,6 @@ func (h *SetHandler) OnSet(c qmq.WebServiceContext, key string, value interface{
 }
 
 func main() {
-	os.Setenv("QMQ_ADDR", "localhost:6379")
-
 	service := qmq.NewWebService()
 	service.Initialize(new(Schema))
 	service.App().AddConsumer("garage:sensor:queue").Initialize()
