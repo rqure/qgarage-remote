@@ -43,6 +43,8 @@ const remoteApp = Vue.createApp({
                 this.serverInteractor.set('garage:requested-state', GARAGE_DOOR_STATE_OPENED)
             } else if (this.state == GARAGE_DOOR_STATE_OPENED) {
                 this.serverInteractor.set('garage:requested-state', GARAGE_DOOR_STATE_CLOSED)
+            } else {
+                this.serverInteractor.set('garage:requested-state', GARAGE_DOOR_STATE_UNSPECIFIED)
             }
         }
     },
