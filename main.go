@@ -95,8 +95,6 @@ func (h *GarageCommandHandler) OnSet(c qmq.WebServiceContext, key string, value 
 }
 
 func main() {
-	os.Setenv("QMQ_ADDR", "localhost:6379")
-
 	service := qmq.NewWebService()
 	service.Initialize(qmq.NewSchema(map[string]proto.Message{
 		"garage:state":           new(qmq.QMQGarageDoorState),
