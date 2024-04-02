@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -13,40 +14,63 @@ import (
 )
 
 type Schema struct {
-	GarageState          *qmq.QMQGarageDoorState
-	GarageRequestedState *qmq.QMQGarageDoorState
+	db *qmq.QMQConnection
+	kv map[string]proto.Message
+}
+
+func NewSchema() *Schema {
+	s := new(Schema)
+	s.kv = make(map[string]proto.Message)
+
+	keys := []string{
+		"garage:state",
+		"garage:requested-state",
+	}
+
+	for _, key := range keys {
+		switch key {
+		case "garage:state":
+			s.kv[key] = new(qmq.QMQGarageDoorState)
+		case "garage:requested-state":
+			s.kv[key] = new(qmq.QMQGarageDoorState)
+		}
+	}
+
+	return s
 }
 
 func (s *Schema) Get(key string) proto.Message {
-	switch key {
-	case "garage:state":
-		return s.GarageState
-	case "garage:requested-state":
-		return s.GarageRequestedState
+	v := s.kv[key]
+
+	if v != nil {
+		s.db.GetValue(key, v)
 	}
-	return nil
+
+	return v
 }
 
 func (s *Schema) Set(key string, value proto.Message) {
-	switch key {
-	case "garage:state":
-		s.GarageState = value.(*qmq.QMQGarageDoorState)
-	case "garage:requested-state":
-		s.GarageRequestedState = value.(*qmq.QMQGarageDoorState)
+	v := s.kv[key]
+	if v != nil && reflect.TypeOf(v) != reflect.TypeOf(value) {
+		return
 	}
+
+	s.kv[key] = value
+	s.db.SetValue(key, value)
 }
 
 func (s *Schema) GetAllData(db *qmq.QMQConnection) {
-	s.GarageState = new(qmq.QMQGarageDoorState)
-	s.GarageRequestedState = new(qmq.QMQGarageDoorState)
+	s.db = db
 
-	db.GetValue("garage:state", s.GarageState)
-	db.GetValue("garage:requested-state", s.GarageRequestedState)
+	for key := range s.kv {
+		s.Get(key)
+	}
 }
 
 func (s *Schema) SetAllData(db *qmq.QMQConnection) {
-	db.SetValue("garage:state", s.GarageState)
-	db.SetValue("garage:requested-state", s.GarageRequestedState)
+	for key := range s.kv {
+		s.Set(key, s.kv[key])
+	}
 }
 
 // Example JSON:
