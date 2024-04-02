@@ -10,6 +10,7 @@ import (
 
 	qmq "github.com/rqure/qmq/src"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // Example JSON:
@@ -21,6 +22,12 @@ type GarageDoorSensorJson struct {
 	LinkQuality       int     `json:"linkquality"`
 	PowerOutageCount  int     `json:"power_outage_count"`
 	Voltage           int     `json:"voltage"`
+}
+
+type GarageDoorRelayJson struct {
+	State       string `json:"state_l1"`
+	OnTime      int    `json:"on_time"`
+	OffWaitTime int    `json:"off_wait_time"`
 }
 
 type GarageSensorNotificationProcessor struct{}
@@ -63,10 +70,28 @@ func (h *GarageCommandHandler) OnSet(c qmq.WebServiceContext, key string, value 
 
 	c.NotifyClients([]string{key})
 
-	c.App().Logger().Advise(fmt.Sprintf("Garage door requested state changed to: %v", value))
-	// c.App().Producer("garage:command:exchange").Push(&qmq.QMQMqttMessage{
-	// 	Topic: "garage/command",
-	// })
+	requestedState := new(qmq.QMQGarageDoorState)
+	value.(*anypb.Any).UnmarshalTo(requestedState)
+
+	command := GarageDoorRelayJson{
+		State:       "ON",
+		OnTime:      200,
+		OffWaitTime: 1000,
+	}
+
+	commandJson, err := json.Marshal(command)
+	if err != nil {
+		c.App().Logger().Warn(fmt.Sprintf("Failed to marshal garage door relay command: %v", err))
+		return
+	}
+
+	c.App().Logger().Advise(fmt.Sprintf("Garage door requested state changed to: %v", requestedState.Value.String()))
+	c.App().Producer("garage:command:exchange").Push(&qmq.QMQMqttMessage{
+		Topic:    "zigbee2mqtt/garage-door-relay/set",
+		Payload:  commandJson,
+		Qos:      0,
+		Retained: false,
+	})
 }
 
 func main() {
