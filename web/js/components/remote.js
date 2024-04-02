@@ -1,21 +1,48 @@
-const GARAGE_DOOR_STATE_UNSPECIFIED = 0;
-const GARAGE_DOOR_STATE_OPENED = 1;
-const GARAGE_DOOR_STATE_CLOSED = 2;
-
 class RemoteServiceListener extends NotificationListener {
     constructor(vm) {
         super()
         this._vm = vm;
     }
 
-    onNotification(key, data, context) {
+    onNotification(key, message, context) {
         if (key === "connected") {
-            this._vm.websocketConnected = data.value;
+            this.onConnectionStatusUpdate(message);
         } else if (key === "garage:state") {
-            this._vm.state = data.value;
+            this.onGarageStateUpdate(message);
         } else if (key === "garage:requested-state") {
-            this._vm.requestedState = data.value;
+            this.onGarageRequestedStateUpdate(message);
         }
+    }
+
+    onConnectionStatusUpdate(message) {
+        const connectionStatus = message.getValue().unpack(
+            proto.qmq.QMQConnectionState.deserializeBinary,
+            "qmq.QMQConnectionState");
+        
+        this._vm.websocketConnected = connectionStatus;
+
+        if  (!this._vm.serverInteractor) {
+            return;
+        }
+
+        this._vm.serverInteractor.get('garage:state');
+        this._vm.serverInteractor.get('garage:requested-state');
+    }
+
+    onGarageStateUpdate(message) {
+        const garageState = message.getValue().unpack(
+            proto.qmq.QMQGarageDoorState.deserializeBinary,
+            "qmq.QMQGarageDoorState");
+
+        this._vm.state = garageState;
+    }
+
+    onGarageRequestedStateUpdate(message) {
+        const garageRequestedState = message.getValue().unpack(
+            proto.qmq.QMQGarageDoorState.deserializeBinary,
+            "qmq.QMQGarageDoorState");
+
+        this._vm.requestedState = garageRequestedState;
     }
 }
 
@@ -25,9 +52,9 @@ function NewRemoteApplication() {
             const listener = new RemoteServiceListener(this);
 
             return {
-                websocketConnected: false,
-                requestedState: GARAGE_DOOR_STATE_UNSPECIFIED,
-                state: GARAGE_DOOR_STATE_UNSPECIFIED,
+                websocketConnected: new proto.qmq.QMQConnectionState(),
+                requestedState: new proto.qmq.QMQGarageDoorState(),
+                state: new proto.qmq.QMQGarageDoorState(),
                 serverInteractor:
                     new ServerInteractor(`ws://${window.location.hostname}:20000/ws`, new NotificationManager()
                         .addListener('connected', listener)
@@ -40,31 +67,37 @@ function NewRemoteApplication() {
         },
         methods: {
             onButtonClick: function () {
-                if (this.state == GARAGE_DOOR_STATE_CLOSED) {
-                    this.serverInteractor.set('garage:requested-state', GARAGE_DOOR_STATE_OPENED)
-                } else if (this.state == GARAGE_DOOR_STATE_OPENED) {
-                    this.serverInteractor.set('garage:requested-state', GARAGE_DOOR_STATE_CLOSED)
-                } else {
-                    this.serverInteractor.set('garage:requested-state', GARAGE_DOOR_STATE_UNSPECIFIED)
+                let requestedStateValue = proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_UNSPECIFIED;
+
+                if (this.state.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_CLOSED) {
+                    requestedStateValue = proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_OPEN;
+                } else if (this.state.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_OPEN) {
+                    requestedStateValue = proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_CLOSED;
                 }
+
+                this.requestedState.setValue(requestedStateValue);
+
+                const value = new proto.google.protobuf.Any();
+                value.pack(this.requestedState.serializeBinary(), 'qmq.QMQGarageDoorState');
+                this.serverInteractor.set('garage:requested-state', value);
             }
         },
         computed: {
             stateAsText: function () {
-                if (this.state === GARAGE_DOOR_STATE_OPENED && this.state === this.requestedState) {
+                if (this.state.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_OPEN && this.state.getValue() === this.requestedState.getValue()) {
                     return "Opened"
-                } else if (this.state === GARAGE_DOOR_STATE_CLOSED && this.state === this.requestedState) {
+                } else if (this.state.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_CLOSED && this.state.getValue() === this.requestedState.getValue()) {
                     return "Closed"
-                } else if (this.state === GARAGE_DOOR_STATE_OPENED && this.requestedState === GARAGE_DOOR_STATE_CLOSED) {
+                } else if (this.state.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_OPEN && this.requestedState.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_CLOSED) {
                     return "Closing"
-                } else if (this.state === GARAGE_DOOR_STATE_CLOSED && this.requestedState === GARAGE_DOOR_STATE_OPENED) {
+                } else if (this.state.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_CLOSED && this.requestedState.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_OPEN) {
                     return "Opening"
                 } else {
                     return "Unknown"
                 }
             },
             fullyConnected: function () {
-                return this.websocketConnected;
+                return this.websocketConnected.getValue() === proto.qmq.QMQConnectionStateEnum.CONNECTION_STATE_CONNECTED;
             }
         }
     })
