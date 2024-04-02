@@ -5,73 +5,12 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"reflect"
 	"strconv"
 	"time"
 
 	qmq "github.com/rqure/qmq/src"
 	"google.golang.org/protobuf/proto"
 )
-
-type Schema struct {
-	db *qmq.QMQConnection
-	kv map[string]proto.Message
-}
-
-func NewSchema() *Schema {
-	s := new(Schema)
-	s.kv = make(map[string]proto.Message)
-
-	keys := []string{
-		"garage:state",
-		"garage:requested-state",
-	}
-
-	for _, key := range keys {
-		switch key {
-		case "garage:state":
-			s.kv[key] = new(qmq.QMQGarageDoorState)
-		case "garage:requested-state":
-			s.kv[key] = new(qmq.QMQGarageDoorState)
-		}
-	}
-
-	return s
-}
-
-func (s *Schema) Get(key string) proto.Message {
-	v := s.kv[key]
-
-	if v != nil {
-		s.db.GetValue(key, v)
-	}
-
-	return v
-}
-
-func (s *Schema) Set(key string, value proto.Message) {
-	v := s.kv[key]
-	if v != nil && reflect.TypeOf(v) != reflect.TypeOf(value) {
-		return
-	}
-
-	s.kv[key] = value
-	s.db.SetValue(key, value)
-}
-
-func (s *Schema) GetAllData(db *qmq.QMQConnection) {
-	s.db = db
-
-	for key := range s.kv {
-		s.Get(key)
-	}
-}
-
-func (s *Schema) SetAllData(db *qmq.QMQConnection) {
-	for key := range s.kv {
-		s.Set(key, s.kv[key])
-	}
-}
 
 // Example JSON:
 // {"battery":100,"contact":false,"device_temperature":25,"linkquality":87,"power_outage_count":5,"voltage":3085}
@@ -84,9 +23,9 @@ type GarageDoorSensorJson struct {
 	Voltage           int     `json:"voltage"`
 }
 
-type TickHandler struct{}
+type GarageSensorNotificationProcessor struct{}
 
-func (h *TickHandler) OnTick(c qmq.WebServiceContext) {
+func (h *GarageSensorNotificationProcessor) OnTick(c qmq.WebServiceContext) {
 	mqttMessage := new(qmq.QMQMqttMessage)
 	popped := c.App().Consumer("garage:sensor:queue").Pop(mqttMessage)
 	if popped == nil {
@@ -115,9 +54,15 @@ func (h *TickHandler) OnTick(c qmq.WebServiceContext) {
 	c.NotifyClients([]string{"garage:state"})
 }
 
-type SetHandler struct{}
+type GarageCommandHandler struct{}
 
-func (h *SetHandler) OnSet(c qmq.WebServiceContext, key string, value proto.Message) {
+func (h *GarageCommandHandler) OnSet(c qmq.WebServiceContext, key string, value proto.Message) {
+	if key != "garage:requested-state" {
+		return
+	}
+
+	c.NotifyClients([]string{key})
+
 	c.App().Logger().Advise(fmt.Sprintf("Garage door requested state changed to: %v", value))
 	// c.App().Producer("garage:command:exchange").Push(&qmq.QMQMqttMessage{
 	// 	Topic: "garage/command",
@@ -128,11 +73,14 @@ func main() {
 	os.Setenv("QMQ_ADDR", "localhost:6379")
 
 	service := qmq.NewWebService()
-	service.Initialize(new(Schema))
+	service.Initialize(qmq.NewSchema(map[string]proto.Message{
+		"garage:state":           new(qmq.QMQGarageDoorState),
+		"garage:requested-state": new(qmq.QMQGarageDoorState),
+	}))
 	service.App().AddConsumer("garage:sensor:queue").Initialize()
 	service.App().AddProducer("garage:command:exchange").Initialize(10)
-	service.AddTickHandler(new(TickHandler))
-	service.AddSetHandler(new(SetHandler))
+	service.AddTickHandler(new(GarageSensorNotificationProcessor))
+	service.AddSetHandler(new(GarageCommandHandler))
 	defer service.Deinitialize()
 
 	tickRateMs, err := strconv.Atoi(os.Getenv("TICK_RATE_MS"))

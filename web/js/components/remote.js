@@ -19,51 +19,53 @@ class RemoteServiceListener extends NotificationListener {
     }
 }
 
-const remoteApp = Vue.createApp({
-    data() {
-        const listener = new RemoteServiceListener(this);
+function NewRemoteApplication() {
+    return Vue.createApp({
+        data() {
+            const listener = new RemoteServiceListener(this);
 
-        return {
-            websocketConnected: false,
-            requestedState: GARAGE_DOOR_STATE_UNSPECIFIED,
-            state: GARAGE_DOOR_STATE_UNSPECIFIED,
-            serverInteractor:
-                new ServerInteractor(`ws://${window.location.hostname}:20000/ws`, new NotificationManager()
-                    .addListener('connected', listener)
-                    .addListener('garage:state', listener)
-                    .addListener('garage:requested-state', listener))
-        }
-    },
-    mounted() {
-        this.serverInteractor.connect()
-    },
-    methods: {
-        onButtonClick: function() {
-            if (this.state == GARAGE_DOOR_STATE_CLOSED) {
-                this.serverInteractor.set('garage:requested-state', GARAGE_DOOR_STATE_OPENED)
-            } else if (this.state == GARAGE_DOOR_STATE_OPENED) {
-                this.serverInteractor.set('garage:requested-state', GARAGE_DOOR_STATE_CLOSED)
-            } else {
-                this.serverInteractor.set('garage:requested-state', GARAGE_DOOR_STATE_UNSPECIFIED)
-            }
-        }
-    },
-    computed: {
-        stateAsText: function() {
-            if (this.state === GARAGE_DOOR_STATE_OPENED && this.state === this.requestedState) {
-                return "Opened"
-            } else if (this.state === GARAGE_DOOR_STATE_CLOSED && this.state === this.requestedState) {
-                return "Closed"
-            } else if (this.state === GARAGE_DOOR_STATE_OPENED && this.requestedState === GARAGE_DOOR_STATE_CLOSED) {
-                return "Closing"
-            } else if (this.state === GARAGE_DOOR_STATE_CLOSED && this.requestedState === GARAGE_DOOR_STATE_OPENED) {
-                return "Opening"
-            } else {
-                return "Unknown"
+            return {
+                websocketConnected: false,
+                requestedState: GARAGE_DOOR_STATE_UNSPECIFIED,
+                state: GARAGE_DOOR_STATE_UNSPECIFIED,
+                serverInteractor:
+                    new ServerInteractor(`ws://${window.location.hostname}:20000/ws`, new NotificationManager()
+                        .addListener('connected', listener)
+                        .addListener('garage:state', listener)
+                        .addListener('garage:requested-state', listener))
             }
         },
-        fullyConnected: function() {
-            return this.websocketConnected;
+        mounted() {
+            this.serverInteractor.connect()
+        },
+        methods: {
+            onButtonClick: function () {
+                if (this.state == GARAGE_DOOR_STATE_CLOSED) {
+                    this.serverInteractor.set('garage:requested-state', GARAGE_DOOR_STATE_OPENED)
+                } else if (this.state == GARAGE_DOOR_STATE_OPENED) {
+                    this.serverInteractor.set('garage:requested-state', GARAGE_DOOR_STATE_CLOSED)
+                } else {
+                    this.serverInteractor.set('garage:requested-state', GARAGE_DOOR_STATE_UNSPECIFIED)
+                }
+            }
+        },
+        computed: {
+            stateAsText: function () {
+                if (this.state === GARAGE_DOOR_STATE_OPENED && this.state === this.requestedState) {
+                    return "Opened"
+                } else if (this.state === GARAGE_DOOR_STATE_CLOSED && this.state === this.requestedState) {
+                    return "Closed"
+                } else if (this.state === GARAGE_DOOR_STATE_OPENED && this.requestedState === GARAGE_DOOR_STATE_CLOSED) {
+                    return "Closing"
+                } else if (this.state === GARAGE_DOOR_STATE_CLOSED && this.requestedState === GARAGE_DOOR_STATE_OPENED) {
+                    return "Opening"
+                } else {
+                    return "Unknown"
+                }
+            },
+            fullyConnected: function () {
+                return this.websocketConnected;
+            }
         }
-    }
-})
+    })
+}

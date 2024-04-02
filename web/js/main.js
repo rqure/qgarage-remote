@@ -1,1 +1,4 @@
-remoteApp.mount('#remote')
+function main() {
+    const remoteApp = NewRemoteApplication()
+    remoteApp.mount('#remote')
+}
