@@ -84,13 +84,18 @@ function NewRemoteApplication() {
         },
         computed: {
             stateAsText: function () {
-                if (this.state.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_OPEN && this.state.getValue() === this.requestedState.getValue()) {
+                const opened = proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_OPEN;
+                const closed = proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_CLOSED;
+                const currentState = this.state.getValue();
+                const requestedState = this.requestedState.getValue();
+
+                if (currentState === opened && currentState === requestedState) {
                     return "Opened"
-                } else if (this.state.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_CLOSED && this.state.getValue() === this.requestedState.getValue()) {
+                } else if (currentState === closed && currentState === requestedState) {
                     return "Closed"
-                } else if (this.state.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_OPEN && this.requestedState.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_CLOSED) {
+                } else if (currentState === opened && requestedState === closed) {
                     return "Closing"
-                } else if (this.state.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_CLOSED && this.requestedState.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_OPEN) {
+                } else if (currentState === closed && requestedState === opened) {
                     return "Opening"
                 } else {
                     return "Unknown"

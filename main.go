@@ -55,10 +55,13 @@ func (h *GarageSensorNotificationProcessor) OnTick(c qmq.WebServiceContext) {
 	c.Schema().Set("garage:state", &qmq.QMQGarageDoorState{
 		Value: state,
 	})
+	c.Schema().Set("garage:requested-state", &qmq.QMQGarageDoorState{
+		Value: state,
+	})
 
 	c.App().Logger().Advise(fmt.Sprintf("Garage door state changed to: %s", state.String()))
 
-	c.NotifyClients([]string{"garage:state"})
+	c.NotifyClients([]string{"garage:state", "garage:requested-state"})
 }
 
 type GarageCommandHandler struct{}
