@@ -25,9 +25,7 @@ type GarageDoorSensorJson struct {
 }
 
 type GarageDoorRelayJson struct {
-	State       string `json:"state_l1"`
-	OnTime      int    `json:"on_time"`
-	OffWaitTime int    `json:"off_wait_time"`
+	State string `json:"state_l1"`
 }
 
 type GarageSensorNotificationProcessor struct{}
@@ -76,10 +74,16 @@ func (h *GarageCommandHandler) OnSet(c qmq.WebServiceContext, key string, value 
 	requestedState := new(qmq.QMQGarageDoorState)
 	value.(*anypb.Any).UnmarshalTo(requestedState)
 
+	c.App().Logger().Advise(fmt.Sprintf("Garage door requested state changed to: %v", requestedState.Value.String()))
+
+	h.UpdateState(c, "ON")
+	<-time.After(200 * time.Millisecond)
+	h.UpdateState(c, "OFF")
+}
+
+func (h *GarageCommandHandler) UpdateState(c qmq.WebServiceContext, state string) {
 	command := GarageDoorRelayJson{
-		State:       "ON",
-		OnTime:      200,
-		OffWaitTime: 1000,
+		State: state,
 	}
 
 	commandJson, err := json.Marshal(command)
@@ -88,7 +92,6 @@ func (h *GarageCommandHandler) OnSet(c qmq.WebServiceContext, key string, value 
 		return
 	}
 
-	c.App().Logger().Advise(fmt.Sprintf("Garage door requested state changed to: %v", requestedState.Value.String()))
 	c.App().Producer("garage:command:exchange").Push(&qmq.QMQMqttMessage{
 		Topic:    "zigbee2mqtt/garage-door-relay/set",
 		Payload:  commandJson,
