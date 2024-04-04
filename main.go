@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"time"
 
 	qmq "github.com/rqure/qmq/src"
@@ -62,7 +63,9 @@ func (h *GarageSensorNotificationProcessor) OnTick(c qmq.WebServiceContext) {
 	c.NotifyClients([]string{"garage:state", "garage:requested-state"})
 }
 
-type GarageCommandHandler struct{}
+type GarageCommandHandler struct {
+	command sync.Mutex
+}
 
 func (h *GarageCommandHandler) OnSet(c qmq.WebServiceContext, key string, value proto.Message) {
 	if key != "garage:requested-state" {
@@ -76,9 +79,16 @@ func (h *GarageCommandHandler) OnSet(c qmq.WebServiceContext, key string, value 
 
 	c.App().Logger().Advise(fmt.Sprintf("Garage door requested state changed to: %v", requestedState.Value.String()))
 
+	pulseDuration, err := strconv.Atoi(os.Getenv("PULSE_DURATION_MS"))
+	if err != nil {
+		pulseDuration = 200
+	}
+
+	h.command.Lock()
 	h.UpdateState(c, "ON")
-	<-time.After(200 * time.Millisecond)
+	<-time.After(time.Duration(pulseDuration) * time.Millisecond)
 	h.UpdateState(c, "OFF")
+	h.command.Unlock()
 }
 
 func (h *GarageCommandHandler) UpdateState(c qmq.WebServiceContext, state string) {

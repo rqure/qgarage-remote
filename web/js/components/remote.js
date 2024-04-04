@@ -94,9 +94,9 @@ function NewRemoteApplication() {
                 } else if (currentState === closed && currentState === requestedState) {
                     return "Closed"
                 } else if (currentState === opened && requestedState === closed) {
-                    return "Closing"
+                    return "Opened"
                 } else if (currentState === closed && requestedState === opened) {
-                    return "Opening"
+                    return "Closed"
                 } else {
                     return "Unknown"
                 }
