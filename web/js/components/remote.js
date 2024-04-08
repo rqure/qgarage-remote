@@ -9,15 +9,13 @@ class RemoteServiceListener extends NotificationListener {
             this.onConnectionStatusUpdate(message);
         } else if (key === "garage:state") {
             this.onGarageStateUpdate(message);
-        } else if (key === "garage:requested-state") {
-            this.onGarageRequestedStateUpdate(message);
         }
     }
 
     onConnectionStatusUpdate(message) {
         const connectionStatus = message.getValue().unpack(
-            proto.qmq.QMQConnectionState.deserializeBinary,
-            "qmq.QMQConnectionState");
+            proto.qmq.ConnectionState.deserializeBinary,
+            "qmq.ConnectionState");
         
         this._vm.websocketConnected = connectionStatus;
 
@@ -26,23 +24,14 @@ class RemoteServiceListener extends NotificationListener {
         }
 
         this._vm.serverInteractor.get('garage:state');
-        this._vm.serverInteractor.get('garage:requested-state');
     }
 
     onGarageStateUpdate(message) {
         const garageState = message.getValue().unpack(
-            proto.qmq.QMQGarageDoorState.deserializeBinary,
-            "qmq.QMQGarageDoorState");
+            proto.qmq.GarageDoorState.deserializeBinary,
+            "qmq.GarageDoorState");
 
         this._vm.state = garageState;
-    }
-
-    onGarageRequestedStateUpdate(message) {
-        const garageRequestedState = message.getValue().unpack(
-            proto.qmq.QMQGarageDoorState.deserializeBinary,
-            "qmq.QMQGarageDoorState");
-
-        this._vm.requestedState = garageRequestedState;
     }
 }
 
@@ -52,14 +41,13 @@ function NewRemoteApplication() {
             const listener = new RemoteServiceListener(this);
 
             return {
-                websocketConnected: new proto.qmq.QMQConnectionState(),
-                requestedState: new proto.qmq.QMQGarageDoorState(),
-                state: new proto.qmq.QMQGarageDoorState(),
+                websocketConnected: new proto.qmq.ConnectionState(),
+                state: new proto.qmq.GarageDoorState(),
+                trigger: new proto.qmq.Int(),
                 serverInteractor:
                     new ServerInteractor(`ws://${window.location.hostname}:20000/ws`, new NotificationManager()
                         .addListener('connected', listener)
-                        .addListener('garage:state', listener)
-                        .addListener('garage:requested-state', listener))
+                        .addListener('garage:state', listener))
             }
         },
         mounted() {
@@ -67,42 +55,27 @@ function NewRemoteApplication() {
         },
         methods: {
             onButtonClick: function () {
-                let requestedStateValue = proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_UNSPECIFIED;
-
-                if (this.state.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_CLOSED) {
-                    requestedStateValue = proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_OPEN;
-                } else if (this.state.getValue() === proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_OPEN) {
-                    requestedStateValue = proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_CLOSED;
-                }
-
-                this.requestedState.setValue(requestedStateValue);
-
                 const value = new proto.google.protobuf.Any();
-                value.pack(this.requestedState.serializeBinary(), 'qmq.QMQGarageDoorState');
-                this.serverInteractor.set('garage:requested-state', value);
+                value.pack(this.trigger.serializeBinary(), 'qmq.Int');
+                this.serverInteractor.set('garage:trigger', value);
             }
         },
         computed: {
             stateAsText: function () {
-                const opened = proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_OPEN;
-                const closed = proto.qmq.QMQGarageDoorStateEnum.GARAGE_DOOR_STATE_CLOSED;
+                const opened = proto.qmq.GarageDoorState.GarageDoorStateEnum.OPEN;
+                const closed = proto.qmq.GarageDoorState.GarageDoorStateEnum.CLOSED;
                 const currentState = this.state.getValue();
-                const requestedState = this.requestedState.getValue();
 
-                if (currentState === opened && currentState === requestedState) {
+                if (currentState === opened) {
                     return "Opened"
-                } else if (currentState === closed && currentState === requestedState) {
-                    return "Closed"
-                } else if (currentState === opened && requestedState === closed) {
-                    return "Opened"
-                } else if (currentState === closed && requestedState === opened) {
+                } else if (currentState === closed) {
                     return "Closed"
                 } else {
                     return "Unknown"
                 }
             },
             fullyConnected: function () {
-                return this.websocketConnected.getValue() === proto.qmq.QMQConnectionStateEnum.CONNECTION_STATE_CONNECTED;
+                return this.websocketConnected.getValue() === proto.qmq.ConnectionStateEnum.CONNECTION_STATE_CONNECTED;
             }
         }
     })
