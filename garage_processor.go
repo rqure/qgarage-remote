@@ -12,7 +12,7 @@ import (
 
 type GarageProcessorConfig struct {
 	PulseDurationProvider PulseDurationProvider
-	ReminderProvider      ReminderProvider
+	TtsProvider           TtsProvider
 }
 
 type GarageProcessor struct {
@@ -25,8 +25,8 @@ func NewGarageProcessor(config GarageProcessorConfig) qmq.WebServiceCustomProces
 		config.PulseDurationProvider = NewEnvironmentPulseDurationProvider()
 	}
 
-	if config.ReminderProvider == nil {
-		config.ReminderProvider = NewEnvironmentReminderProvider()
+	if config.TtsProvider == nil {
+		config.TtsProvider = NewEnvironmentReminderProvider()
 	}
 
 	return &GarageProcessor{
@@ -51,19 +51,27 @@ func (p *GarageProcessor) Process(e qmq.EngineComponentProvider, w qmq.WebServic
 			}
 			w.WithSchema().Set("garage:state", &qmq.GarageDoorState{Value: state})
 
+			if state == qmq.GarageDoorState_CLOSED && p.config.TtsProvider.GetGarageClosedMessage() != "DISABLE" {
+				e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageClosedMessage())
+			}
+
+			if state == qmq.GarageDoorState_OPENED && p.config.TtsProvider.GetGarageOpenedMessage() != "DISABLE" {
+				e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageOpenedMessage())
+			}
+
 			if state == qmq.GarageDoorState_OPENED && p.activeReminder.CompareAndSwap(false, true) {
 				go func() {
-					if p.config.ReminderProvider.GetMessage() != "DISABLE" {
+					if p.config.TtsProvider.GetGarageOpenedReminderMessage() != "DISABLE" {
 						return
 					}
 
-					<-time.After(p.config.ReminderProvider.GetInterval())
+					<-time.After(p.config.TtsProvider.GetGarageOpenedReminderInterval())
 
 					if w.WithSchema().Get("garage:state").(*qmq.GarageDoorState).Value != qmq.GarageDoorState_OPENED {
 						return
 					}
 
-					e.WithProducer("audio-player:tts:exchange").Push(p.config.ReminderProvider.GetMessage())
+					e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageOpenedReminderMessage())
 				}()
 			}
 		case key := <-w.WithSchema().Ch():
