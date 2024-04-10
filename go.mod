@@ -3,7 +3,7 @@ module github.com/rqure/qgarage
 go 1.21.6
 
 require (
-	github.com/rqure/qmq v1.1.3
+	github.com/rqure/qmq v1.1.6
 	google.golang.org/protobuf v1.32.0
 )
 

@@ -20,7 +20,7 @@ func NewDoorRelayToMqttTransformer(logger qmq.Logger) qmq.Transformer {
 func (t *DoorRelayToMqttTransformer) Transform(i interface{}) interface{} {
 	j, ok := i.(*GarageDoorRelayJson)
 	if !ok {
-		t.logger.Error("DoorRelayToMqttTransformer.Transform: invalid input type")
+		t.logger.Error(fmt.Sprintf("DoorRelayToMqttTransformer.Transform: invalid input type %T", i))
 		return nil
 	}
 

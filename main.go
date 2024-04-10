@@ -21,6 +21,7 @@ func (t *TransformerProviderFactory) Create(components qmq.EngineComponentProvid
 		NewMqttToDoorSensorTransformer(components.WithLogger()),
 	})
 	transformerProvider.Set("producer:garage:command:exchange", []qmq.Transformer{
+		NewStateToDoorRelayTransformer(components.WithLogger()),
 		NewDoorRelayToMqttTransformer(components.WithLogger()),
 		qmq.NewMqttToAnyTransformer(components.WithLogger()),
 		qmq.NewAnyToMessageTransformer(components.WithLogger()),

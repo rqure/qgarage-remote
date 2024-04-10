@@ -75,7 +75,7 @@ function NewRemoteApplication() {
                 }
             },
             fullyConnected: function () {
-                return this.websocketConnected.getValue() === proto.qmq.ConnectionStateEnum.CONNECTION_STATE_CONNECTED;
+                return this.websocketConnected.getValue() === proto.qmq.ConnectionState.ConnectionStateEnum.CONNECTED;
             }
         }
     })
