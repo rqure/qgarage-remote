@@ -26,6 +26,11 @@ func (t *TransformerProviderFactory) Create(components qmq.EngineComponentProvid
 		qmq.NewMqttToAnyTransformer(components.WithLogger()),
 		qmq.NewAnyToMessageTransformer(components.WithLogger()),
 	})
+	transformerProvider.Set("producer:audio-player:tts:exchange", []qmq.Transformer{
+		NewStringToTtsTransformer(components.WithLogger()),
+		qmq.NewProtoToAnyTransformer(components.WithLogger()),
+		qmq.NewAnyToMessageTransformer(components.WithLogger()),
+	})
 	return transformerProvider
 }
 

@@ -18,7 +18,7 @@ func (p *EnvironmentPulseDurationProvider) Get() int {
 }
 
 func NewEnvironmentPulseDurationProvider() PulseDurationProvider {
-	pulseDuration, err := strconv.Atoi(os.Getenv("PULSE_DURATION_MS"))
+	pulseDuration, err := strconv.Atoi(os.Getenv("PULSE_DURATION_MILLIS"))
 	if err != nil {
 		pulseDuration = 200
 	}

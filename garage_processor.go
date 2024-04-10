@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -11,15 +12,21 @@ import (
 
 type GarageProcessorConfig struct {
 	PulseDurationProvider PulseDurationProvider
+	ReminderProvider      ReminderProvider
 }
 
 type GarageProcessor struct {
-	config GarageProcessorConfig
+	config         GarageProcessorConfig
+	activeReminder atomic.Bool
 }
 
 func NewGarageProcessor(config GarageProcessorConfig) qmq.WebServiceCustomProcessor {
 	if config.PulseDurationProvider == nil {
 		config.PulseDurationProvider = NewEnvironmentPulseDurationProvider()
+	}
+
+	if config.ReminderProvider == nil {
+		config.ReminderProvider = NewEnvironmentReminderProvider()
 	}
 
 	return &GarageProcessor{
@@ -43,6 +50,22 @@ func (p *GarageProcessor) Process(e qmq.EngineComponentProvider, w qmq.WebServic
 				state = qmq.GarageDoorState_CLOSED
 			}
 			w.WithSchema().Set("garage:state", &qmq.GarageDoorState{Value: state})
+
+			if state == qmq.GarageDoorState_OPENED && p.activeReminder.CompareAndSwap(false, true) {
+				go func() {
+					if p.config.ReminderProvider.GetMessage() != "DISABLE" {
+						return
+					}
+
+					<-time.After(p.config.ReminderProvider.GetInterval())
+
+					if w.WithSchema().Get("garage:state").(*qmq.GarageDoorState).Value != qmq.GarageDoorState_OPENED {
+						return
+					}
+
+					e.WithProducer("audio-player:tts:exchange").Push(p.config.ReminderProvider.GetMessage())
+				}()
+			}
 		case key := <-w.WithSchema().Ch():
 			w.WithWebClientNotifier().NotifyAll([]string{key})
 
