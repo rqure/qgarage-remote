@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -38,53 +40,80 @@ func (p *GarageProcessor) Process(e qmq.EngineComponentProvider, w qmq.WebServic
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	for {
-		select {
-		case <-quit:
-			return
-		case consumable := <-e.WithConsumer("garage:sensor:queue").Pop():
-			consumable.Ack()
-			sensor := consumable.Data().(*GarageDoorSensorJson)
-			state := qmq.GarageDoorState_OPENED
-			if sensor.Contact {
-				state = qmq.GarageDoorState_CLOSED
-			}
-			w.WithSchema().Set("garage:state", &qmq.GarageDoorState{Value: state})
+	wg := sync.WaitGroup{}
+	wg.Add(2)
 
-			if state == qmq.GarageDoorState_CLOSED && p.config.TtsProvider.GetGarageClosedMessage() != "DISABLE" {
-				e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageClosedMessage())
-			}
+	consumerProcessorCtx, consumerProcessorCancel := context.WithCancel(context.Background())
+	schemaProcessorCtx, schemaProcessorCancel := context.WithCancel(context.Background())
 
-			if state == qmq.GarageDoorState_OPENED && p.config.TtsProvider.GetGarageOpenedMessage() != "DISABLE" {
-				e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageOpenedMessage())
-			}
+	go func() {
+		defer wg.Done()
 
-			if state == qmq.GarageDoorState_OPENED && p.activeReminder.CompareAndSwap(false, true) {
-				go func() {
-					if p.config.TtsProvider.GetGarageOpenedReminderMessage() != "DISABLE" {
-						return
-					}
+		for {
+			select {
+			case <-consumerProcessorCtx.Done():
+				return
+			case consumable := <-e.WithConsumer("garage:sensor:queue").Pop():
+				consumable.Ack()
+				sensor := consumable.Data().(*GarageDoorSensorJson)
+				state := qmq.GarageDoorState_OPENED
+				if sensor.Contact {
+					state = qmq.GarageDoorState_CLOSED
+				}
 
-					<-time.After(p.config.TtsProvider.GetGarageOpenedReminderInterval())
+				w.WithSchema().Set("garage:state", &qmq.GarageDoorState{Value: state})
 
-					if w.WithSchema().Get("garage:state").(*qmq.GarageDoorState).Value != qmq.GarageDoorState_OPENED {
-						return
-					}
+				if state == qmq.GarageDoorState_CLOSED && p.config.TtsProvider.GetGarageClosedMessage() != "DISABLE" {
+					e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageClosedMessage())
+				}
 
-					e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageOpenedReminderMessage())
-				}()
-			}
-		case key := <-w.WithSchema().Ch():
-			w.WithWebClientNotifier().NotifyAll([]string{key})
+				if state == qmq.GarageDoorState_OPENED && p.config.TtsProvider.GetGarageOpenedMessage() != "DISABLE" {
+					e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageOpenedMessage())
+				}
 
-			switch key {
-			case "garage:trigger":
-				w.WithLogger().Advise("Garage door button pressed")
+				if state == qmq.GarageDoorState_OPENED && p.activeReminder.CompareAndSwap(false, true) {
+					go func() {
+						if p.config.TtsProvider.GetGarageOpenedReminderMessage() != "DISABLE" {
+							return
+						}
 
-				e.WithProducer("garage:command:exchange").Push("ON")
-				<-time.After(time.Duration(p.config.PulseDurationProvider.Get()) * time.Millisecond)
-				e.WithProducer("garage:command:exchange").Push("OFF")
+						<-time.After(p.config.TtsProvider.GetGarageOpenedReminderInterval())
+
+						if w.WithSchema().Get("garage:state").(*qmq.GarageDoorState).Value != qmq.GarageDoorState_OPENED {
+							return
+						}
+
+						e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageOpenedReminderMessage())
+					}()
+				}
 			}
 		}
-	}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		for {
+			select {
+			case <-schemaProcessorCtx.Done():
+				return
+			case key := <-w.WithSchema().Ch():
+				w.WithWebClientNotifier().NotifyAll([]string{key})
+
+				switch key {
+				case "garage:trigger":
+					w.WithLogger().Advise("Garage door button pressed")
+
+					e.WithProducer("garage:command:exchange").Push("ON")
+					<-time.After(time.Duration(p.config.PulseDurationProvider.Get()) * time.Millisecond)
+					e.WithProducer("garage:command:exchange").Push("OFF")
+				}
+			}
+		}
+	}()
+
+	<-quit
+	consumerProcessorCancel()
+	schemaProcessorCancel()
+	wg.Wait()
 }
