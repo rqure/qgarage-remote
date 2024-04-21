@@ -61,30 +61,32 @@ func (p *GarageProcessor) Process(e qmq.EngineComponentProvider, w qmq.WebServic
 					state = qmq.GarageDoorState_CLOSED
 				}
 
-				w.WithSchema().Set("garage:state", &qmq.GarageDoorState{Value: state})
-
-				if state == qmq.GarageDoorState_CLOSED && p.config.TtsProvider.GetGarageClosedMessage() != "DISABLE" {
-					e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageClosedMessage())
-				}
-
-				if state == qmq.GarageDoorState_OPENED && p.config.TtsProvider.GetGarageOpenedMessage() != "DISABLE" {
-					e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageOpenedMessage())
-				}
-
-				if state == qmq.GarageDoorState_OPENED && p.activeReminder.CompareAndSwap(false, true) {
-					go func() {
-						if p.config.TtsProvider.GetGarageOpenedReminderMessage() != "DISABLE" {
-							return
-						}
-
-						<-time.After(p.config.TtsProvider.GetGarageOpenedReminderInterval())
-
-						if w.WithSchema().Get("garage:state").(*qmq.GarageDoorState).Value != qmq.GarageDoorState_OPENED {
-							return
-						}
-
-						e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageOpenedReminderMessage())
-					}()
+				if w.WithSchema().Get("garage:state").(*qmq.GarageDoorState).Value != state {
+					w.WithSchema().Set("garage:state", &qmq.GarageDoorState{Value: state})
+	
+					if state == qmq.GarageDoorState_CLOSED && p.config.TtsProvider.GetGarageClosedMessage() != "DISABLE" {
+						e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageClosedMessage())
+					}
+	
+					if state == qmq.GarageDoorState_OPENED && p.config.TtsProvider.GetGarageOpenedMessage() != "DISABLE" {
+						e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageOpenedMessage())
+					}
+	
+					if state == qmq.GarageDoorState_OPENED && p.activeReminder.CompareAndSwap(false, true) {
+						go func() {
+							if p.config.TtsProvider.GetGarageOpenedReminderMessage() != "DISABLE" {
+								return
+							}
+	
+							<-time.After(p.config.TtsProvider.GetGarageOpenedReminderInterval())
+	
+							if w.WithSchema().Get("garage:state").(*qmq.GarageDoorState).Value != qmq.GarageDoorState_OPENED {
+								return
+							}
+	
+							e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageOpenedReminderMessage())
+						}()
+					}
 				}
 			}
 		}
