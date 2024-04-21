@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	qmq "github.com/rqure/qmq/src"
 	"google.golang.org/protobuf/proto"
 )
@@ -35,6 +37,8 @@ func (t *TransformerProviderFactory) Create(components qmq.EngineComponentProvid
 }
 
 func main() {
+	os.Setenv("QMQ_ADDR", "192.168.1.250:6379")
+
 	engine := qmq.NewDefaultEngine(qmq.DefaultEngineConfig{
 		NameProvider:               &NameProvider{},
 		TransformerProviderFactory: &TransformerProviderFactory{},
