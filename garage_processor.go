@@ -53,7 +53,7 @@ func (p *GarageProcessor) Process(e qmq.EngineComponentProvider, w qmq.WebServic
 			select {
 			case <-consumerProcessorCtx.Done():
 				return
-			case consumable := <-e.WithConsumer("garage:status").Pop():
+			case consumable := <-e.WithConsumer("qmq2mqtt:topic:zigbee2mqtt/garage-door-sensor").Pop():
 				consumable.Ack()
 				sensor := consumable.Data().(*GarageDoorSensorJson)
 				state := qmq.GarageDoorState_OPENED

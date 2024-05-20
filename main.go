@@ -15,7 +15,7 @@ type TransformerProviderFactory struct{}
 
 func (t *TransformerProviderFactory) Create(components qmq.EngineComponentProvider) qmq.TransformerProvider {
 	transformerProvider := qmq.NewDefaultTransformerProvider()
-	transformerProvider.Set("consumer:garage:status", []qmq.Transformer{
+	transformerProvider.Set("consumer:qmq2mqtt:topic:zigbee2mqtt/garage-door-sensor", []qmq.Transformer{
 		qmq.NewTracePopTransformer(components.WithLogger()),
 		qmq.NewMessageToAnyTransformer(components.WithLogger()),
 		qmq.NewAnyToMqttTransformer(components.WithLogger()),
