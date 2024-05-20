@@ -106,9 +106,9 @@ func (p *GarageProcessor) Process(e qmq.EngineComponentProvider, w qmq.WebServic
 				case "garage:trigger":
 					w.WithLogger().Advise("Garage door button pressed")
 
-					e.WithProducer("garage:cmd:relay").Push("ON")
+					e.WithProducer("qmq2mqtt:cmd:send-msg").Push("ON")
 					<-time.After(time.Duration(p.config.PulseDurationProvider.Get()) * time.Millisecond)
-					e.WithProducer("garage:cmd:relay").Push("OFF")
+					e.WithProducer("qmq2mqtt:cmd:send-msg").Push("OFF")
 				}
 			}
 		}
