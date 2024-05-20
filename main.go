@@ -15,21 +15,28 @@ type TransformerProviderFactory struct{}
 
 func (t *TransformerProviderFactory) Create(components qmq.EngineComponentProvider) qmq.TransformerProvider {
 	transformerProvider := qmq.NewDefaultTransformerProvider()
-	transformerProvider.Set("consumer:garage:sensor:queue", []qmq.Transformer{
+	transformerProvider.Set("consumer:garage:status", []qmq.Transformer{
+		qmq.NewTracePopTransformer(components.WithLogger()),
 		qmq.NewMessageToAnyTransformer(components.WithLogger()),
 		qmq.NewAnyToMqttTransformer(components.WithLogger()),
 		NewMqttToDoorSensorTransformer(components.WithLogger()),
 	})
-	transformerProvider.Set("producer:garage:command:exchange", []qmq.Transformer{
+	transformerProvider.Set("producer:garage:cmd:relay", []qmq.Transformer{
 		NewStateToDoorRelayTransformer(components.WithLogger()),
 		NewDoorRelayToMqttTransformer(components.WithLogger()),
 		qmq.NewMqttToAnyTransformer(components.WithLogger()),
-		qmq.NewAnyToMessageTransformer(components.WithLogger()),
+		qmq.NewAnyToMessageTransformer(components.WithLogger(), qmq.AnyToMessageTransformerConfig{
+			SourceProvider: components.WithNameProvider(),
+		}),
+		qmq.NewTracePushTransformer(components.WithLogger()),
 	})
-	transformerProvider.Set("producer:audio-player:tts:exchange", []qmq.Transformer{
+	transformerProvider.Set("producer:audio-player:cmd:play-tts", []qmq.Transformer{
 		NewStringToTtsTransformer(components.WithLogger()),
 		qmq.NewProtoToAnyTransformer(components.WithLogger()),
-		qmq.NewAnyToMessageTransformer(components.WithLogger()),
+		qmq.NewAnyToMessageTransformer(components.WithLogger(), qmq.AnyToMessageTransformerConfig{
+			SourceProvider: components.WithNameProvider(),
+		}),
+		qmq.NewTracePushTransformer(components.WithLogger()),
 	})
 	return transformerProvider
 }

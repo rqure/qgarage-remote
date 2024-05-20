@@ -53,7 +53,7 @@ func (p *GarageProcessor) Process(e qmq.EngineComponentProvider, w qmq.WebServic
 			select {
 			case <-consumerProcessorCtx.Done():
 				return
-			case consumable := <-e.WithConsumer("garage:sensor:queue").Pop():
+			case consumable := <-e.WithConsumer("garage:status").Pop():
 				consumable.Ack()
 				sensor := consumable.Data().(*GarageDoorSensorJson)
 				state := qmq.GarageDoorState_OPENED
@@ -63,28 +63,28 @@ func (p *GarageProcessor) Process(e qmq.EngineComponentProvider, w qmq.WebServic
 
 				if w.WithSchema().Get("garage:state").(*qmq.GarageDoorState).Value != state {
 					w.WithSchema().Set("garage:state", &qmq.GarageDoorState{Value: state})
-	
+
 					if state == qmq.GarageDoorState_CLOSED && p.config.TtsProvider.GetGarageClosedMessage() != "DISABLE" {
-						e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageClosedMessage())
+						e.WithProducer("audio-player:cmd:play-tts").Push(p.config.TtsProvider.GetGarageClosedMessage())
 					}
-	
+
 					if state == qmq.GarageDoorState_OPENED && p.config.TtsProvider.GetGarageOpenedMessage() != "DISABLE" {
-						e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageOpenedMessage())
+						e.WithProducer("audio-player:cmd:play-tts").Push(p.config.TtsProvider.GetGarageOpenedMessage())
 					}
-	
+
 					if state == qmq.GarageDoorState_OPENED && p.activeReminder.CompareAndSwap(false, true) {
 						go func() {
 							if p.config.TtsProvider.GetGarageOpenedReminderMessage() != "DISABLE" {
 								return
 							}
-	
+
 							<-time.After(p.config.TtsProvider.GetGarageOpenedReminderInterval())
-	
+
 							if w.WithSchema().Get("garage:state").(*qmq.GarageDoorState).Value != qmq.GarageDoorState_OPENED {
 								return
 							}
-	
-							e.WithProducer("audio-player:tts:exchange").Push(p.config.TtsProvider.GetGarageOpenedReminderMessage())
+
+							e.WithProducer("audio-player:cmd:play-tts").Push(p.config.TtsProvider.GetGarageOpenedReminderMessage())
 						}()
 					}
 				}
@@ -106,9 +106,9 @@ func (p *GarageProcessor) Process(e qmq.EngineComponentProvider, w qmq.WebServic
 				case "garage:trigger":
 					w.WithLogger().Advise("Garage door button pressed")
 
-					e.WithProducer("garage:command:exchange").Push("ON")
+					e.WithProducer("garage:cmd:relay").Push("ON")
 					<-time.After(time.Duration(p.config.PulseDurationProvider.Get()) * time.Millisecond)
-					e.WithProducer("garage:command:exchange").Push("OFF")
+					e.WithProducer("garage:cmd:relay").Push("OFF")
 				}
 			}
 		}
