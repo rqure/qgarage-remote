@@ -1,57 +1,53 @@
 package main
 
 import (
-	qmq "github.com/rqure/qmq/src"
-	"google.golang.org/protobuf/proto"
+	"os"
+
+	qdb "github.com/rqure/qdb/src"
 )
 
-type NameProvider struct{}
+func getDatabaseAddress() string {
+	addr := os.Getenv("QDB_ADDR")
+	if addr == "" {
+		addr = "redis:6379"
+	}
 
-func (n *NameProvider) Get() string {
-	return "garage"
-}
-
-type TransformerProviderFactory struct{}
-
-func (t *TransformerProviderFactory) Create(components qmq.EngineComponentProvider) qmq.TransformerProvider {
-	transformerProvider := qmq.NewDefaultTransformerProvider()
-	transformerProvider.Set("consumer:qmq2mqtt:topic:zigbee2mqtt/garage-door-sensor", []qmq.Transformer{
-		qmq.NewTracePopTransformer(components.WithLogger()),
-		qmq.NewMessageToAnyTransformer(components.WithLogger()),
-		qmq.NewAnyToMqttTransformer(components.WithLogger()),
-		NewMqttToDoorSensorTransformer(components.WithLogger()),
-	})
-	transformerProvider.Set("producer:qmq2mqtt:cmd:send-msg", []qmq.Transformer{
-		NewStateToDoorRelayTransformer(components.WithLogger()),
-		NewDoorRelayToMqttTransformer(components.WithLogger()),
-		qmq.NewMqttToAnyTransformer(components.WithLogger()),
-		qmq.NewAnyToMessageTransformer(components.WithLogger(), qmq.AnyToMessageTransformerConfig{
-			SourceProvider: components.WithNameProvider(),
-		}),
-		qmq.NewTracePushTransformer(components.WithLogger()),
-	})
-	transformerProvider.Set("producer:audio-player:cmd:play-tts", []qmq.Transformer{
-		NewStringToTtsTransformer(components.WithLogger()),
-		qmq.NewProtoToAnyTransformer(components.WithLogger()),
-		qmq.NewAnyToMessageTransformer(components.WithLogger(), qmq.AnyToMessageTransformerConfig{
-			SourceProvider: components.WithNameProvider(),
-		}),
-		qmq.NewTracePushTransformer(components.WithLogger()),
-	})
-	return transformerProvider
+	return addr
 }
 
 func main() {
-	engine := qmq.NewDefaultEngine(qmq.DefaultEngineConfig{
-		NameProvider:               &NameProvider{},
-		TransformerProviderFactory: &TransformerProviderFactory{},
-		EngineProcessor: qmq.NewWebServiceEngineProcessor(qmq.WebServiceEngineProcessorConfig{
-			WebServiceCustomProcessor: NewGarageProcessor(GarageProcessorConfig{}),
-			SchemaMapping: map[string]proto.Message{
-				"garage:state":   &qmq.GarageDoorState{},
-				"garage:trigger": &qmq.Int{},
-			},
-		}),
+	db := qdb.NewRedisDatabase(qdb.RedisDatabaseConfig{
+		Address: getDatabaseAddress(),
 	})
-	engine.Run()
+
+	dbWorker := qdb.NewDatabaseWorker(db)
+	leaderElectionWorker := qdb.NewLeaderElectionWorker(db)
+	schemaValidator := qdb.NewSchemaValidator(db)
+
+	schemaValidator.AddEntity("Root", "SchemaUpdateTrigger")
+	schemaValidator.AddEntity("GarageController", "OpenTTS", "CloseTTS", "OpenReminderTTS", "OpenReminderInterval")
+	schemaValidator.AddEntity("GarageDoor", "GarageDoorStatus", "ControlUnit", "OpenTrigger", "CloseTrigger")
+
+	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(schemaValidator.OnSchemaUpdated))
+	leaderElectionWorker.AddAvailabilityCriteria(func() bool {
+		return schemaValidator.IsValid()
+	})
+
+	dbWorker.Signals.Connected.Connect(qdb.Slot(leaderElectionWorker.OnDatabaseConnected))
+	dbWorker.Signals.Disconnected.Connect(qdb.Slot(leaderElectionWorker.OnDatabaseDisconnected))
+
+	// Create a new application configuration
+	config := qdb.ApplicationConfig{
+		Name: "garage",
+		Workers: []qdb.IWorker{
+			dbWorker,
+			leaderElectionWorker,
+		},
+	}
+
+	// Create a new application
+	app := qdb.NewApplication(config)
+
+	// Execute the application
+	app.Execute()
 }
