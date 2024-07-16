@@ -39,6 +39,27 @@ func (gc *GarageController) Reinitialize() {
 		return
 	}
 
+	gc.notificationTokens = append(gc.notificationTokens, gc.db.Notify(&qdb.DatabaseNotificationConfig{
+		Type:  "GarageDoor",
+		Field: "StatusDevice",
+	}, qdb.NewNotificationCallback(gc.OnStatusDeviceChanged)))
+
+	gc.notificationTokens = append(gc.notificationTokens, gc.db.Notify(&qdb.DatabaseNotificationConfig{
+		Type:  "GarageDoor",
+		Field: "OpenTrigger",
+		ContextFields: []string{
+			"ControlDevice",
+		},
+	}, qdb.NewNotificationCallback(gc.OnOpenTrigger)))
+
+	gc.notificationTokens = append(gc.notificationTokens, gc.db.Notify(&qdb.DatabaseNotificationConfig{
+		Type:  "GarageDoor",
+		Field: "CloseTrigger",
+		ContextFields: []string{
+			"ControlDevice",
+		},
+	}, qdb.NewNotificationCallback(gc.OnCloseTrigger)))
+
 	doors := qdb.NewEntityFinder(gc.db).Find(qdb.SearchCriteria{
 		EntityType: "GarageDoor",
 		Conditions: []qdb.FieldConditionEval{
@@ -72,6 +93,12 @@ func (gc *GarageController) OnBecameLeader() {
 
 func (gc *GarageController) OnLostLeadership() {
 	gc.isLeader = false
+
+	for _, token := range gc.notificationTokens {
+		token.Unbind()
+	}
+
+	gc.notificationTokens = []qdb.INotificationToken{}
 }
 
 func (gc *GarageController) DoWork() {
@@ -110,12 +137,6 @@ func (gc *GarageController) CloseDoor(event events.IEvent) {
 	}
 }
 
-func (gc *GarageController) OnDoorStatusChanged(event events.IEvent) {
-	if !gc.isLeader {
-		return
-	}
-}
-
 func (gc *GarageController) OpenTTS(event events.IEvent) {
 	if !gc.isLeader {
 		return
@@ -138,4 +159,16 @@ func (gc *GarageController) WriteDB(event events.IEvent) {
 	if !gc.isLeader {
 		return
 	}
+}
+
+func (gc *GarageController) OnStatusDeviceChanged(notification *qdb.DatabaseNotification) {
+	gc.Reinitialize()
+}
+
+func (gc *GarageController) OnOpenTrigger(notification *qdb.DatabaseNotification) {
+
+}
+
+func (gc *GarageController) OnCloseTrigger(notification *qdb.DatabaseNotification) {
+
 }
