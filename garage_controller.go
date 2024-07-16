@@ -1,34 +1,22 @@
 package main
 
-import qdb "github.com/rqure/qdb/src"
-
-type EventType int
-
-const (
-	OpenCommand EventType = iota
-	CloseCommand
-	DoorStatusChanged
-	OpenTTS
-	CloseTTS
-	OpenReminderTTS
+import (
+	qdb "github.com/rqure/qdb/src"
+	"github.com/rqure/qgarage/devices"
+	"github.com/rqure/qgarage/events"
 )
-
-type IEvent interface {
-	GetType() EventType
-	Context() interface{}
-}
 
 type GarageController struct {
 	db                 qdb.IDatabase
 	isLeader           bool
-	events             chan IEvent
+	events             chan events.IEvent
 	notificationTokens []qdb.INotificationToken
 }
 
 func NewGarageController(db qdb.IDatabase) *GarageController {
 	return &GarageController{
 		db:     db,
-		events: make(chan IEvent, 1024),
+		events: make(chan events.IEvent, 1024),
 	}
 }
 
@@ -59,7 +47,17 @@ func (gc *GarageController) Reinitialize() {
 	})
 
 	for _, door := range doors {
-		door.GetField("StatusDevice->")
+		statusDeviceId := door.GetField("StatusDevice").PullEntityReference()
+		statusDeviceEntity := qdb.NewEntity(gc.db, statusDeviceId)
+		statusDevice := devices.MakeStatusDevice(statusDeviceEntity.GetType())
+
+		if statusDevice == nil {
+			qdb.Warn("[GarageController::Reinitialize] Status device not found for door %s (%s)", door.GetId(), door.GetName())
+			continue
+		}
+
+		config, callback := statusDevice.GetNotificationSettings(door, statusDeviceEntity)
+		gc.notificationTokens = append(gc.notificationTokens, gc.db.Notify(config, callback))
 	}
 }
 
@@ -81,18 +79,18 @@ func (gc *GarageController) DoWork() {
 		select {
 		case event := <-gc.events:
 			switch event.GetType() {
-			case OpenCommand:
+			case events.OpenCommand:
 				gc.OpenDoor(event)
-			case CloseCommand:
+			case events.CloseCommand:
 				gc.CloseDoor(event)
-			case DoorStatusChanged:
-				gc.OnDoorStatusChanged(event)
-			case OpenTTS:
+			case events.OpenTTS:
 				gc.OpenTTS(event)
-			case CloseTTS:
+			case events.CloseTTS:
 				gc.CloseTTS(event)
-			case OpenReminderTTS:
+			case events.OpenReminderTTS:
 				gc.OpenReminderTTS(event)
+			case events.WriteDB:
+				gc.WriteDB(event)
 			}
 		default:
 			return
@@ -100,37 +98,43 @@ func (gc *GarageController) DoWork() {
 	}
 }
 
-func (gc *GarageController) OpenDoor(event IEvent) {
+func (gc *GarageController) OpenDoor(event events.IEvent) {
 	if !gc.isLeader {
 		return
 	}
 }
 
-func (gc *GarageController) CloseDoor(event IEvent) {
+func (gc *GarageController) CloseDoor(event events.IEvent) {
 	if !gc.isLeader {
 		return
 	}
 }
 
-func (gc *GarageController) OnDoorStatusChanged(event IEvent) {
+func (gc *GarageController) OnDoorStatusChanged(event events.IEvent) {
 	if !gc.isLeader {
 		return
 	}
 }
 
-func (gc *GarageController) OpenTTS(event IEvent) {
+func (gc *GarageController) OpenTTS(event events.IEvent) {
 	if !gc.isLeader {
 		return
 	}
 }
 
-func (gc *GarageController) CloseTTS(event IEvent) {
+func (gc *GarageController) CloseTTS(event events.IEvent) {
 	if !gc.isLeader {
 		return
 	}
 }
 
-func (gc *GarageController) OpenReminderTTS(event IEvent) {
+func (gc *GarageController) OpenReminderTTS(event events.IEvent) {
+	if !gc.isLeader {
+		return
+	}
+}
+
+func (gc *GarageController) WriteDB(event events.IEvent) {
 	if !gc.isLeader {
 		return
 	}
