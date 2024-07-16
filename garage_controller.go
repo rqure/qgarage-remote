@@ -19,9 +19,10 @@ type IEvent interface {
 }
 
 type GarageController struct {
-	db       qdb.IDatabase
-	isLeader bool
-	events   chan IEvent
+	db                 qdb.IDatabase
+	isLeader           bool
+	events             chan IEvent
+	notificationTokens []qdb.INotificationToken
 }
 
 func NewGarageController(db qdb.IDatabase) *GarageController {
@@ -40,7 +41,26 @@ func (gc *GarageController) Deinit() {
 }
 
 func (gc *GarageController) Reinitialize() {
+	for _, token := range gc.notificationTokens {
+		token.Unbind()
+	}
 
+	gc.notificationTokens = []qdb.INotificationToken{}
+
+	if !gc.isLeader {
+		return
+	}
+
+	doors := qdb.NewEntityFinder(gc.db).Find(qdb.SearchCriteria{
+		EntityType: "GarageDoor",
+		Conditions: []qdb.FieldConditionEval{
+			qdb.NewReferenceCondition().Where("StatusDevice").IsNotEqualTo(&qdb.EntityReference{Raw: ""}),
+		},
+	})
+
+	for _, door := range doors {
+		door.GetField("StatusDevice->")
+	}
 }
 
 func (gc *GarageController) OnSchemaUpdated() {
@@ -81,19 +101,37 @@ func (gc *GarageController) DoWork() {
 }
 
 func (gc *GarageController) OpenDoor(event IEvent) {
+	if !gc.isLeader {
+		return
+	}
 }
 
 func (gc *GarageController) CloseDoor(event IEvent) {
+	if !gc.isLeader {
+		return
+	}
 }
 
 func (gc *GarageController) OnDoorStatusChanged(event IEvent) {
+	if !gc.isLeader {
+		return
+	}
 }
 
 func (gc *GarageController) OpenTTS(event IEvent) {
+	if !gc.isLeader {
+		return
+	}
 }
 
 func (gc *GarageController) CloseTTS(event IEvent) {
+	if !gc.isLeader {
+		return
+	}
 }
 
 func (gc *GarageController) OpenReminderTTS(event IEvent) {
+	if !gc.isLeader {
+		return
+	}
 }
