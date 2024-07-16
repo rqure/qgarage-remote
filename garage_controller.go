@@ -120,9 +120,37 @@ func (gc *GarageController) OnStatusDeviceChanged(notification *qdb.DatabaseNoti
 }
 
 func (gc *GarageController) OnOpenTrigger(notification *qdb.DatabaseNotification) {
+	controlDeviceEntityRef := &qdb.EntityReference{}
+	err := notification.Context[0].Value.UnmarshalTo(controlDeviceEntityRef)
+	if err != nil {
+		qdb.Error("[GarageController::OnOpenTrigger] Unable to unmarshal control device entity id: %s", err)
+		return
+	}
 
+	controlDeviceEntity := qdb.NewEntity(gc.db, controlDeviceEntityRef.Raw)
+	controlDevice := devices.MakeControlDevice(controlDeviceEntity.GetType())
+	if controlDevice == nil {
+		qdb.Warn("[GarageController::OnOpenTrigger] Control device not found for entity %s (%s)", controlDeviceEntity.GetId(), controlDeviceEntity.GetName())
+		return
+	}
+
+	controlDevice.Open(gc.writeRequests)
 }
 
 func (gc *GarageController) OnCloseTrigger(notification *qdb.DatabaseNotification) {
+	controlDeviceEntityRef := &qdb.EntityReference{}
+	err := notification.Context[0].Value.UnmarshalTo(controlDeviceEntityRef)
+	if err != nil {
+		qdb.Error("[GarageController::OnCloseTrigger] Unable to unmarshal control device entity id: %s", err)
+		return
+	}
 
+	controlDeviceEntity := qdb.NewEntity(gc.db, controlDeviceEntityRef.Raw)
+	controlDevice := devices.MakeControlDevice(controlDeviceEntity.GetType())
+	if controlDevice == nil {
+		qdb.Warn("[GarageController::OnCloseTrigger] Control device not found for entity %s (%s)", controlDeviceEntity.GetId(), controlDeviceEntity.GetName())
+		return
+	}
+
+	controlDevice.Close(gc.writeRequests)
 }
