@@ -11,8 +11,8 @@ type IControlDevice interface {
 
 	// The channel is used to send commands to the device
 	// These would normally be in the form of database writes
-	Open(writeRequests chan *qdb.DatabaseRequest)
-	Close(writeRequests chan *qdb.DatabaseRequest)
+	Open(controlDeviceEntityId string, writeRequests chan *qdb.DatabaseRequest)
+	Close(controlDeviceEntityId string, writeRequests chan *qdb.DatabaseRequest)
 }
 
 // A status device for a garage door would report

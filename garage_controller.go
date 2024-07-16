@@ -134,7 +134,7 @@ func (gc *GarageController) OnOpenTrigger(notification *qdb.DatabaseNotification
 		return
 	}
 
-	controlDevice.Open(gc.writeRequests)
+	controlDevice.Open(controlDeviceEntityRef.Raw, gc.writeRequests)
 }
 
 func (gc *GarageController) OnCloseTrigger(notification *qdb.DatabaseNotification) {
@@ -152,5 +152,5 @@ func (gc *GarageController) OnCloseTrigger(notification *qdb.DatabaseNotificatio
 		return
 	}
 
-	controlDevice.Close(gc.writeRequests)
+	controlDevice.Close(controlDeviceEntityRef.Raw, gc.writeRequests)
 }
