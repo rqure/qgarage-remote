@@ -2,7 +2,6 @@ package devices
 
 import (
 	qdb "github.com/rqure/qdb/src"
-	"github.com/rqure/qgarage/events"
 )
 
 // A control device for a garage door would allow us
@@ -10,10 +9,10 @@ import (
 type IControlDevice interface {
 	GetModel() string
 
-	// Event stream is used to send commands to the device
+	// The channel is used to send commands to the device
 	// These would normally be in the form of database writes
-	Open(eventStream chan events.IEvent)
-	Close(eventStream chan events.IEvent)
+	Open(writeRequests chan *qdb.DatabaseRequest)
+	Close(writeRequests chan *qdb.DatabaseRequest)
 }
 
 // A status device for a garage door would report

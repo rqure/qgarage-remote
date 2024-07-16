@@ -3,20 +3,19 @@ package main
 import (
 	qdb "github.com/rqure/qdb/src"
 	"github.com/rqure/qgarage/devices"
-	"github.com/rqure/qgarage/events"
 )
 
 type GarageController struct {
 	db                 qdb.IDatabase
 	isLeader           bool
-	events             chan events.IEvent
+	writeRequests      chan *qdb.DatabaseRequest
 	notificationTokens []qdb.INotificationToken
 }
 
 func NewGarageController(db qdb.IDatabase) *GarageController {
 	return &GarageController{
-		db:     db,
-		events: make(chan events.IEvent, 1024),
+		db:            db,
+		writeRequests: make(chan *qdb.DatabaseRequest, 1024),
 	}
 }
 
@@ -104,60 +103,15 @@ func (gc *GarageController) OnLostLeadership() {
 func (gc *GarageController) DoWork() {
 	for {
 		select {
-		case event := <-gc.events:
-			switch event.GetType() {
-			case events.OpenCommand:
-				gc.OpenDoor(event)
-			case events.CloseCommand:
-				gc.CloseDoor(event)
-			case events.OpenTTS:
-				gc.OpenTTS(event)
-			case events.CloseTTS:
-				gc.CloseTTS(event)
-			case events.OpenReminderTTS:
-				gc.OpenReminderTTS(event)
-			case events.WriteDB:
-				gc.WriteDB(event)
+		case writeRequest := <-gc.writeRequests:
+			if !gc.isLeader {
+				continue
 			}
+
+			gc.db.Write([]*qdb.DatabaseRequest{writeRequest})
 		default:
 			return
 		}
-	}
-}
-
-func (gc *GarageController) OpenDoor(event events.IEvent) {
-	if !gc.isLeader {
-		return
-	}
-}
-
-func (gc *GarageController) CloseDoor(event events.IEvent) {
-	if !gc.isLeader {
-		return
-	}
-}
-
-func (gc *GarageController) OpenTTS(event events.IEvent) {
-	if !gc.isLeader {
-		return
-	}
-}
-
-func (gc *GarageController) CloseTTS(event events.IEvent) {
-	if !gc.isLeader {
-		return
-	}
-}
-
-func (gc *GarageController) OpenReminderTTS(event events.IEvent) {
-	if !gc.isLeader {
-		return
-	}
-}
-
-func (gc *GarageController) WriteDB(event events.IEvent) {
-	if !gc.isLeader {
-		return
 	}
 }
 
