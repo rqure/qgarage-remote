@@ -101,12 +101,13 @@ func (tc *TTSController) DoWork() {
 func (tc *TTSController) OnGarageDoorStatusChanged(notification *qdb.DatabaseNotification) {
 	status := qdb.ValueCast[*qdb.GarageDoorState](notification.Current.Value)
 
+	doorName := qdb.NewEntity(tc.db, notification.Current.Id).GetName()
 	if status.Raw == qdb.GarageDoorState_OPENED {
-		tc.lastDoorOpenReminder[notification.Current.Name] = time.Now()
-		tc.DoTTS(notification.Current.Name, OpenTTS)
+		tc.lastDoorOpenReminder[doorName] = time.Now()
+		tc.DoTTS(doorName, OpenTTS)
 	} else {
-		delete(tc.lastDoorOpenReminder, notification.Current.Name)
-		tc.DoTTS(notification.Current.Name, CloseTTS)
+		delete(tc.lastDoorOpenReminder, doorName)
+		tc.DoTTS(doorName, CloseTTS)
 	}
 }
 
