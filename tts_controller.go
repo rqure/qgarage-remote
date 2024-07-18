@@ -91,7 +91,7 @@ func (tc *TTSController) DoWork() {
 	}
 
 	for doorName, lastReminder := range tc.lastDoorOpenReminder {
-		if time.Since(lastReminder) > 5*time.Minute {
+		if time.Since(lastReminder) > tc.openReminderInterval {
 			tc.DoTTS(doorName, OpenReminderTTS)
 			tc.lastDoorOpenReminder[doorName] = time.Now()
 		}
