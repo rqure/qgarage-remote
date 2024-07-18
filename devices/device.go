@@ -28,17 +28,33 @@ type IStatusDevice interface {
 }
 
 func GetAllStatusDevices() []IStatusDevice {
-	return []IStatusDevice{}
+	return []IStatusDevice{
+		&Aqara_MCCGQ11LM{},
+	}
 }
 
 func GetAllControlDevices() []IControlDevice {
-	return []IControlDevice{}
+	return []IControlDevice{
+		&Aqara_LLKZMK12LM{},
+	}
 }
 
 func MakeStatusDevice(model string) IStatusDevice {
+	devices := GetAllStatusDevices()
+	for _, device := range devices {
+		if device.GetModel() == model {
+			return device
+		}
+	}
 	return nil
 }
 
 func MakeControlDevice(model string) IControlDevice {
+	devices := GetAllControlDevices()
+	for _, device := range devices {
+		if device.GetModel() == model {
+			return device
+		}
+	}
 	return nil
 }
