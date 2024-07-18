@@ -23,6 +23,8 @@ func main() {
 	dbWorker := qdb.NewDatabaseWorker(db)
 	leaderElectionWorker := qdb.NewLeaderElectionWorker(db)
 	schemaValidator := qdb.NewSchemaValidator(db)
+	garageController := NewGarageController(db)
+	ttsController := NewTTSController(db)
 
 	schemaValidator.AddEntity("Root", "SchemaUpdateTrigger")
 	schemaValidator.AddEntity("GarageController", "OpenTTS", "CloseTTS", "OpenReminderTTS", "OpenReminderInterval")
@@ -35,6 +37,13 @@ func main() {
 
 	dbWorker.Signals.Connected.Connect(qdb.Slot(leaderElectionWorker.OnDatabaseConnected))
 	dbWorker.Signals.Disconnected.Connect(qdb.Slot(leaderElectionWorker.OnDatabaseDisconnected))
+	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(garageController.OnSchemaUpdated))
+	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(ttsController.OnSchemaUpdated))
+
+	leaderElectionWorker.Signals.BecameLeader.Connect(qdb.Slot(garageController.OnBecameLeader))
+	leaderElectionWorker.Signals.BecameLeader.Connect(qdb.Slot(ttsController.OnBecameLeader))
+	leaderElectionWorker.Signals.LosingLeadership.Connect(qdb.Slot(garageController.OnLostLeadership))
+	leaderElectionWorker.Signals.LosingLeadership.Connect(qdb.Slot(ttsController.OnLostLeadership))
 
 	// Create a new application configuration
 	config := qdb.ApplicationConfig{
@@ -42,6 +51,8 @@ func main() {
 		Workers: []qdb.IWorker{
 			dbWorker,
 			leaderElectionWorker,
+			garageController,
+			ttsController,
 		},
 	}
 
