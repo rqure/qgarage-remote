@@ -20,12 +20,14 @@ type TTSController struct {
 	isLeader             bool
 	notificationTokens   []qdb.INotificationToken
 	lastDoorOpenReminder map[string]time.Time
+	openReminderInterval time.Duration
 }
 
 func NewTTSController(db qdb.IDatabase) *TTSController {
 	return &TTSController{
 		db:                   db,
 		lastDoorOpenReminder: make(map[string]time.Time),
+		openReminderInterval: 5 * time.Minute,
 	}
 }
 
@@ -49,6 +51,20 @@ func (tc *TTSController) Reinitialize() {
 		Field:          "GarageDoorStatus",
 		NotifyOnChange: true,
 	}, qdb.NewNotificationCallback(tc.OnGarageDoorStatusChanged)))
+
+	tc.notificationTokens = append(tc.notificationTokens, tc.db.Notify(&qdb.DatabaseNotificationConfig{
+		Type:  "GarageController",
+		Field: "OpenReminderInterval",
+	}, qdb.NewNotificationCallback(tc.OnOpenReminderIntervalChanged)))
+
+	garageControllers := qdb.NewEntityFinder(tc.db).Find(qdb.SearchCriteria{
+		EntityType: "GarageController",
+		Conditions: []qdb.FieldConditionEval{},
+	})
+
+	for _, garageController := range garageControllers {
+		tc.openReminderInterval = time.Duration(garageController.GetField("OpenReminderInterval").PullInt()) * time.Minute
+	}
 }
 
 func (tc *TTSController) OnSchemaUpdated() {
@@ -98,6 +114,21 @@ func (tc *TTSController) OnGarageDoorStatusChanged(notification *qdb.DatabaseNot
 		delete(tc.lastDoorOpenReminder, notification.Current.Name)
 		tc.DoTTS(notification.Current.Name, CloseTTS)
 	}
+}
+
+func (tc *TTSController) OnOpenReminderIntervalChanged(notification *qdb.DatabaseNotification) {
+	interval := &qdb.Int{}
+	err := notification.Current.Value.UnmarshalTo(interval)
+	if err != nil {
+		qdb.Error("[TTSController::OnOpenReminderIntervalChanged] Failed to unmarshal open reminder interval: %s", err)
+		return
+	}
+
+	if interval.Raw < 1 {
+		interval.Raw = 1
+	}
+
+	tc.openReminderInterval = time.Duration(interval.Raw) * time.Minute
 }
 
 func (tc *TTSController) DoTTS(doorName string, ttsType TTSType) {
