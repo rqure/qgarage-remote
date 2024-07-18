@@ -99,13 +99,7 @@ func (tc *TTSController) DoWork() {
 }
 
 func (tc *TTSController) OnGarageDoorStatusChanged(notification *qdb.DatabaseNotification) {
-	status := &qdb.GarageDoorState{}
-
-	err := notification.Current.Value.UnmarshalTo(status)
-	if err != nil {
-		qdb.Error("[TTSController::OnGarageDoorStatusChanged] Failed to unmarshal garage door status: %s", err)
-		return
-	}
+	status := qdb.ValueCast[*qdb.GarageDoorState](notification.Current.Value)
 
 	if status.Raw == qdb.GarageDoorState_OPENED {
 		tc.lastDoorOpenReminder[notification.Current.Name] = time.Now()
@@ -117,12 +111,7 @@ func (tc *TTSController) OnGarageDoorStatusChanged(notification *qdb.DatabaseNot
 }
 
 func (tc *TTSController) OnOpenReminderIntervalChanged(notification *qdb.DatabaseNotification) {
-	interval := &qdb.Int{}
-	err := notification.Current.Value.UnmarshalTo(interval)
-	if err != nil {
-		qdb.Error("[TTSController::OnOpenReminderIntervalChanged] Failed to unmarshal open reminder interval: %s", err)
-		return
-	}
+	interval := qdb.ValueCast[*qdb.Int](notification.Current.Value)
 
 	if interval.Raw < 1 {
 		interval.Raw = 1
