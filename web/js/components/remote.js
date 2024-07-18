@@ -1,81 +1,39 @@
-class RemoteServiceListener extends NotificationListener {
-    constructor(vm) {
-        super()
-        this._vm = vm;
-    }
+function registerRemoteComponent(app, context) {
+    return app.component("remote", {
+        template: `
+<div>
 
-    onNotification(key, message, context) {
-        if (key === "connected") {
-            this.onConnectionStatusUpdate(message);
-        } else if (key === "garage:state") {
-            this.onGarageStateUpdate(message);
-        }
-    }
+</div>`,
 
-    onConnectionStatusUpdate(message) {
-        const connectionStatus = message.getValue().unpack(
-            proto.qmq.ConnectionState.deserializeBinary,
-            "qmq.ConnectionState");
-        
-        this._vm.websocketConnected = connectionStatus;
-
-        if  (!this._vm.serverInteractor) {
-            return;
-        }
-
-        this._vm.serverInteractor.get('garage:state');
-    }
-
-    onGarageStateUpdate(message) {
-        const garageState = message.getValue().unpack(
-            proto.qmq.GarageDoorState.deserializeBinary,
-            "qmq.GarageDoorState");
-
-        this._vm.state = garageState;
-    }
-}
-
-function NewRemoteApplication() {
-    return Vue.createApp({
         data() {
-            const listener = new RemoteServiceListener(this);
+            context.qDatabaseInteractor
+                .getEventManager()
+                .addEventListener(DATABASE_EVENTS.CONNECTED, this.onDatabaseConnected.bind(this))
+                .addEventListener(DATABASE_EVENTS.DISCONNECTED, this.onDatabaseDisconnected.bind(this));
 
             return {
-                websocketConnected: new proto.qmq.ConnectionState(),
-                state: new proto.qmq.GarageDoorState(),
-                trigger: new proto.qmq.Int(),
-                serverInteractor:
-                    new ServerInteractor(`ws://${window.location.hostname}:20000/ws`, new NotificationManager()
-                        .addListener('connected', listener)
-                        .addListener('garage:state', listener))
+                database: context.qDatabaseInteractor,
+                isDatabaseConnected: false
             }
         },
-        mounted() {
-            this.serverInteractor.connect()
-        },
-        methods: {
-            onButtonClick: function () {
-                const value = new proto.google.protobuf.Any();
-                value.pack(this.trigger.serializeBinary(), 'qmq.Int');
-                this.serverInteractor.set('garage:trigger', value);
-            }
-        },
-        computed: {
-            stateAsText: function () {
-                const opened = proto.qmq.GarageDoorState.GarageDoorStateEnum.OPEN;
-                const closed = proto.qmq.GarageDoorState.GarageDoorStateEnum.CLOSED;
-                const currentState = this.state.getValue();
 
-                if (currentState === opened) {
-                    return "Opened"
-                } else if (currentState === closed) {
-                    return "Closed"
-                } else {
-                    return "Unknown"
-                }
+        mounted() {
+            this.isDatabaseConnected = this.database.isConnected();
+        },
+
+        methods: {
+            onDatabaseConnected() {
+                this.isDatabaseConnected = true;
             },
-            fullyConnected: function () {
-                return this.websocketConnected.getValue() === proto.qmq.ConnectionState.ConnectionStateEnum.CONNECTED;
+
+            onDatabaseDisconnected() {
+                this.isDatabaseConnected = false;
+            },
+        },
+
+        computed: {
+            isRemoteEnabled() {
+                return this.isDatabaseConnected;
             }
         }
     })

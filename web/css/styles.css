@@ -17,81 +17,11 @@ body {
     -o-user-select: none;
 }
 
-.hbox {
-    display: flex;
-    width: 100%;
-    gap: 10px;
-}
-
-.vbox {
-    display: flex;
+.fill-v {
     height: 100%;
-    gap: 10px;
-    flex-direction: column;
 }
 
-.box-items-focused-to-center {
-    align-items: center;
-    justify-content: center;
-}
-
-.c1 {
-    background-color: #121212;
-}
-
-.c2 {
-    background-color: #232323;
-}
-
-.c3 {
-    background-color: #801336;
-}
-
-.c4 {
-    background-color: #c72c41;
-}
-
-.c5 {
-    background-color: #ee4540;
-}
-
-.bg-alert {
-    background-color: #801336;
-}
-
-.bg-success {
-    background-color: #04AA6D;
-}
-
-.garage-remote {
-    max-width: 95%;
-    border-radius: 5%;
-}
-
-.garage-state {
-    font-size: 24px;
-}
-
-.garage-button {
-    height: 70%;
-    margin-bottom: 30px;
-    border-radius: 5%;
-    width: 66%;
-
-    padding: 15px 25px;
-    font-size: 24px;
-    text-align: center;
-    cursor: pointer;
-    outline: none;
-    border: none;
-    border-radius: 15px;
-    box-shadow: 0 9px #999;
-}
-
-.garage-button.bg-success:hover {background-color: #3e8e41}
-
-.garage-button.bg-success:active {
-  background-color: #3e8e41;
-  box-shadow: 0 5px #666;
-  transform: translateY(3%);
+.scrollable-dropdown-menu {
+    max-height: 200px;
+    overflow-y: scroll;
 }
