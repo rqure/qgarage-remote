@@ -101,8 +101,6 @@ func (gc *GarageController) OnLostLeadership() {
 }
 
 func (gc *GarageController) DoWork() {
-	// todo: implement TTS
-
 	for {
 		select {
 		case writeRequest := <-gc.writeRequests:
