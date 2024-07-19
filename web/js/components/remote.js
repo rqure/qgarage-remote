@@ -1,8 +1,12 @@
 function registerRemoteComponent(app, context) {
     return app.component("remote", {
+// show a dropdown of garage doors
+// show the current state of the selected garage door
+// show push button to open/close garage door
+// push button is locked to prevent accidental click
+// user can unlock the push button by clicking on the lock icon
         template: `
 <div>
-
 </div>`,
 
         data() {
@@ -13,7 +17,11 @@ function registerRemoteComponent(app, context) {
 
             return {
                 database: context.qDatabaseInteractor,
-                isDatabaseConnected: false
+                isDatabaseConnected: false,
+                garageDoors: [],
+                selectedDoor: null,
+                state: null,
+                locked: true,
             }
         },
 
