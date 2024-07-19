@@ -2,7 +2,9 @@ async function main() {
     const app = Vue.createApp({});
     
     const context = {
-        qDatabaseInteractor: new DatabaseInteractor(),
+        qDatabaseInteractor: new DatabaseInteractor({
+            port: "20000"
+        }),
     };
 
     registerRemoteComponent(app, context);
