@@ -3,7 +3,7 @@ async function main() {
     
     const context = {
         qDatabaseInteractor: new DatabaseInteractor({
-            port: "20000"
+            port: ":20000"
         }),
     };
 
