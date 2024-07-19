@@ -15,12 +15,22 @@ func getDatabaseAddress() string {
 	return addr
 }
 
+func getWebServiceAddress() string {
+	addr := os.Getenv("QDB_WEBSERVICE_ADDR")
+	if addr == "" {
+		addr = "0.0.0.0:20001"
+	}
+
+	return addr
+}
+
 func main() {
 	db := qdb.NewRedisDatabase(qdb.RedisDatabaseConfig{
 		Address: getDatabaseAddress(),
 	})
 
 	dbWorker := qdb.NewDatabaseWorker(db)
+	webServiceWorker := qdb.NewWebServiceWorker(getWebServiceAddress())
 	leaderElectionWorker := qdb.NewLeaderElectionWorker(db)
 	schemaValidator := qdb.NewSchemaValidator(db)
 	garageController := NewGarageController(db)
@@ -50,6 +60,7 @@ func main() {
 		Name: "garage",
 		Workers: []qdb.IWorker{
 			dbWorker,
+			webServiceWorker,
 			leaderElectionWorker,
 			garageController,
 			ttsController,
