@@ -37,14 +37,9 @@ function registerRemoteComponent(app, context) {
                     </div>
                 </div>
             </div>
-            <div v-if="showGarage" class="garage-door">
+            <div class="garage">
                 <transition name="door">
-                    <div class="garage-door-close-to-open"></div>
-                </transition>
-            </div>
-            <div v-else class="garage-door">
-                <transition name="door">
-                    <div class="garage-door-close-to-open"></div>
+                    <div v-if="showGarage" class="garage-door"></div>
                 </transition>
             </div>
         </div>
