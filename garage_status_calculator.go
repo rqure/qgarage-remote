@@ -1,12 +1,18 @@
 package main
 
-import qdb "github.com/rqure/qdb/src"
+import (
+	"time"
+
+	qdb "github.com/rqure/qdb/src"
+)
 
 type MovingGarageDoorContext struct {
 	InitialPercentClosed int64
 	PercentClosed        int64
 	Closing              bool
-	TimeToOpenOrClose    int64
+	TotalTimeToOpen      int64
+	TotalTimeToClose     int64
+	ButtonPressTime      time.Time
 }
 
 type GarageStatusCalculator struct {
@@ -91,16 +97,13 @@ func (gsc *GarageStatusCalculator) OnGarageDoorMoving(notification *qdb.Database
 	timeToClose := qdb.ValueCast[*qdb.Int](notification.Context[3].Value)
 
 	if moving.Raw {
-		time := timeToOpen
-		if closing.Raw {
-			time = timeToClose
-		}
-
 		gsc.movingGarageDoorContext[notification.Current.Id] = MovingGarageDoorContext{
 			InitialPercentClosed: percentClosed.Raw,
 			PercentClosed:        percentClosed.Raw,
 			Closing:              closing.Raw,
-			TimeToOpenOrClose:    time.Raw,
+			TotalTimeToOpen:      timeToOpen.Raw,
+			TotalTimeToClose:     timeToClose.Raw,
+			ButtonPressTime:      notification.Current.WriteTime.AsTime(),
 		}
 	} else {
 		delete(gsc.movingGarageDoorContext, notification.Current.Id)
@@ -144,9 +147,20 @@ func (gsc *GarageStatusCalculator) DoWork() {
 
 	for doorId, movingGarageDoor := range gsc.movingGarageDoorContext {
 		if movingGarageDoor.Closing {
-			movingGarageDoor.PercentClosed = movingGarageDoor.InitialPercentClosed - (100 * movingGarageDoor.TimeToOpenOrClose)
+			// Remaining time to Close = Total Time to Close - ( Time elapsed before pause + Time elapsed after resume)
+			timeElapsedBeforePause := (movingGarageDoor.InitialPercentClosed / 100) * movingGarageDoor.TotalTimeToOpen
+			timeElapsedAfterResume := time.Since(movingGarageDoor.ButtonPressTime).Milliseconds()
+			remainingTimeToClose := max(movingGarageDoor.TotalTimeToClose-(timeElapsedBeforePause+timeElapsedAfterResume), 0)
+			movingGarageDoor.PercentClosed = max(movingGarageDoor.TotalTimeToClose-remainingTimeToClose, 0) / movingGarageDoor.TotalTimeToClose * 100
 		} else {
-			// Calculate percent based on time to open
+			// Remaining time to Open = Total Time to Open - ( Time elapsed before pause + Time elapsed after resume)
+			timeElapsedBeforePause := (movingGarageDoor.InitialPercentClosed / 100) * movingGarageDoor.TotalTimeToClose
+			timeElapsedAfterResume := time.Since(movingGarageDoor.ButtonPressTime).Milliseconds()
+			remainingTimeToOpen := max(movingGarageDoor.TotalTimeToOpen-(timeElapsedBeforePause+timeElapsedAfterResume), 0)
+			movingGarageDoor.PercentClosed = max(movingGarageDoor.TotalTimeToOpen-remainingTimeToOpen, 0) / movingGarageDoor.TotalTimeToOpen * 100
 		}
+
+		door := qdb.NewEntity(gsc.db, doorId)
+		door.GetField("PercentClosed").PushInt(movingGarageDoor.PercentClosed)
 	}
 }
