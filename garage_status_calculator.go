@@ -96,6 +96,11 @@ func (gsc *GarageStatusCalculator) OnGarageDoorMoving(notification *qdb.Database
 	timeToOpen := qdb.ValueCast[*qdb.Int](notification.Context[2].Value)
 	timeToClose := qdb.ValueCast[*qdb.Int](notification.Context[3].Value)
 
+	if timeToOpen.Raw == 0 || timeToClose.Raw == 0 {
+		qdb.Warn("[GarageStatusCalculator::OnGarageDoorMoving] TimeToOpen and/or TimeToClose is 0 for door %s", notification.Current.Id)
+		return
+	}
+
 	if moving.Raw {
 		gsc.movingGarageDoorContext[notification.Current.Id] = MovingGarageDoorContext{
 			InitialPercentClosed: percentClosed.Raw,
