@@ -24,7 +24,8 @@ type GarageStatusCalculator struct {
 
 func NewGarageStatusCalculator(db qdb.IDatabase) *GarageStatusCalculator {
 	return &GarageStatusCalculator{
-		db: db,
+		db:                      db,
+		movingGarageDoorContext: make(map[string]MovingGarageDoorContext),
 	}
 }
 
