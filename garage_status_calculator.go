@@ -51,11 +51,17 @@ func (gsc *GarageStatusCalculator) Reinitialize() {
 	gsc.notificationTokens = append(gsc.notificationTokens, gsc.db.Notify(&qdb.DatabaseNotificationConfig{
 		Type:  "GarageDoor",
 		Field: "OpenTrigger",
+		ContextFields: []string{
+			"Moving",
+		},
 	}, qdb.NewNotificationCallback(gsc.OnOpenTrigger)))
 
 	gsc.notificationTokens = append(gsc.notificationTokens, gsc.db.Notify(&qdb.DatabaseNotificationConfig{
 		Type:  "GarageDoor",
 		Field: "CloseTrigger",
+		ContextFields: []string{
+			"Moving",
+		},
 	}, qdb.NewNotificationCallback(gsc.OnCloseTrigger)))
 
 	gsc.notificationTokens = append(gsc.notificationTokens, gsc.db.Notify(&qdb.DatabaseNotificationConfig{
@@ -117,15 +123,27 @@ func (gsc *GarageStatusCalculator) OnGarageDoorMoving(notification *qdb.Database
 }
 
 func (gsc *GarageStatusCalculator) OnOpenTrigger(notification *qdb.DatabaseNotification) {
+	moving := qdb.ValueCast[*qdb.Bool](notification.Context[0].Value)
+
 	door := qdb.NewEntity(gsc.db, notification.Current.Id)
 	door.GetField("Closing").PushBool(false)
-	door.GetField("Moving").PushBool(true)
+	if moving.Raw {
+		door.GetField("Moving").PushBool(false)
+	} else {
+		door.GetField("Moving").PushBool(true)
+	}
 }
 
 func (gsc *GarageStatusCalculator) OnCloseTrigger(notification *qdb.DatabaseNotification) {
+	moving := qdb.ValueCast[*qdb.Bool](notification.Context[0].Value)
+
 	door := qdb.NewEntity(gsc.db, notification.Current.Id)
 	door.GetField("Closing").PushBool(true)
-	door.GetField("Moving").PushBool(true)
+	if moving.Raw {
+		door.GetField("Moving").PushBool(false)
+	} else {
+		door.GetField("Moving").PushBool(true)
+	}
 }
 
 func (gsc *GarageStatusCalculator) OnSchemaUpdated() {
@@ -152,28 +170,38 @@ func (gsc *GarageStatusCalculator) DoWork() {
 	}
 
 	for doorId, movingGarageDoor := range gsc.movingGarageDoorContext {
+		var percentClosed float64
+
 		if movingGarageDoor.Closing {
 			// Remaining time to Close = Total Time to Close - ( Time elapsed before pause + Time elapsed after resume)
-			timeElapsedBeforePause := (movingGarageDoor.InitialPercentClosed / 100) * movingGarageDoor.TotalTimeToOpen
+			timeElapsedBeforePause := int64(0)
+			if movingGarageDoor.InitialPercentClosed > 0 {
+				timeElapsedBeforePause = (movingGarageDoor.InitialPercentClosed / 100) * movingGarageDoor.TotalTimeToOpen
+			}
 			timeElapsedAfterResume := time.Since(movingGarageDoor.ButtonPressTime).Milliseconds()
 			remainingTimeToClose := max(movingGarageDoor.TotalTimeToClose-(timeElapsedBeforePause+timeElapsedAfterResume), 0)
-			movingGarageDoor.PercentClosed = max(movingGarageDoor.TotalTimeToClose-remainingTimeToClose, 0) / movingGarageDoor.TotalTimeToClose * 100
+			percentClosed = float64(max(movingGarageDoor.TotalTimeToClose-remainingTimeToClose, 0)) / float64(movingGarageDoor.TotalTimeToClose) * float64(100)
 
 			qdb.Info("[GarageStatusCalculator::DoWork] Door %s is closing. Remaining time to close: %d (timeElapsedBeforePause=%v, timeElapsedAfterResume=%v)", doorId, remainingTimeToClose, timeElapsedBeforePause, timeElapsedAfterResume)
 		} else {
 			// Remaining time to Open = Total Time to Open - ( Time elapsed before pause + Time elapsed after resume)
-			timeElapsedBeforePause := (movingGarageDoor.InitialPercentClosed / 100) * movingGarageDoor.TotalTimeToClose
+			timeElapsedBeforePause := int64(0)
+			if movingGarageDoor.InitialPercentClosed < 100 {
+				timeElapsedBeforePause = (movingGarageDoor.InitialPercentClosed / 100) * movingGarageDoor.TotalTimeToClose
+			}
 			timeElapsedAfterResume := time.Since(movingGarageDoor.ButtonPressTime).Milliseconds()
 			remainingTimeToOpen := max(movingGarageDoor.TotalTimeToOpen-(timeElapsedBeforePause+timeElapsedAfterResume), 0)
-			movingGarageDoor.PercentClosed = remainingTimeToOpen / movingGarageDoor.TotalTimeToOpen * 100
+			percentClosed = float64(remainingTimeToOpen) / float64(movingGarageDoor.TotalTimeToOpen) * float64(100)
 
 			qdb.Info("[GarageStatusCalculator::DoWork] Door %s is opening. Remaining time to open: %d (timeElapsedBeforePause=%v, timeElapsedAfterResume=%v)", doorId, remainingTimeToOpen, timeElapsedBeforePause, timeElapsedAfterResume)
 		}
 
 		door := qdb.NewEntity(gsc.db, doorId)
+		movingGarageDoor.PercentClosed = int64(percentClosed)
+		qdb.Info("[GarageStatusCalculator::DoWork] Updating door %s with PercentClosed=%v", doorId, percentClosed)
 		door.GetField("PercentClosed").PushInt(movingGarageDoor.PercentClosed)
 
-		if movingGarageDoor.PercentClosed == 0 || movingGarageDoor.PercentClosed == 100 {
+		if percentClosed == 0 || percentClosed == 100 {
 			door.GetField("Moving").PushBool(false)
 		}
 	}
