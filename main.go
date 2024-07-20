@@ -38,7 +38,7 @@ func main() {
 
 	schemaValidator.AddEntity("Root", "SchemaUpdateTrigger")
 	schemaValidator.AddEntity("GarageController", "OpenTTS", "CloseTTS", "OpenReminderTTS", "OpenReminderInterval")
-	schemaValidator.AddEntity("GarageDoor", "GarageDoorStatus", "ControlDevice", "StatusDevice", "OpenTrigger", "CloseTrigger")
+	schemaValidator.AddEntity("GarageDoor", "GarageDoorStatus", "ControlDevice", "StatusDevice", "OpenTrigger", "CloseTrigger", "Closing", "Moving", "TimeToOpen", "TimeToClose", "PercentClosed")
 
 	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(schemaValidator.OnSchemaUpdated))
 	leaderElectionWorker.AddAvailabilityCriteria(func() bool {
