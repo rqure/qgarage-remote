@@ -15,110 +15,71 @@ function registerRemoteComponent(app, context) {
             <div class="row">
                 <div class="col-auto">
                     <select class="form-control" id="garageDoorSelect" v-model="selectedGarageDoor">
-                        <option v-for="door in garageDoors" :key="door.id" :value="door.id">
-                            {{ door.name }}
+                        <option v-for="door in garageDoors" :key="door.getId()" :value="door.getId()">
+                            {{ door.getName() }}
                         </option>
                     </select>
                 </div>
                 <div class="col-auto">
-                    <span>{{ currentState }}</span>
-                </div>
-                <div class="col-auto">
                     <button class="btn btn-primary" :disabled="isButtonLocked" @click="toggleGarageDoor">
-                        {{ buttonLabel }}
+                        Open / Close
                     </button>
                 </div>
                 <div class="col-auto">
-                    <div class="form-check mt-2">
+                    <div class="form-check form-switch mt-2">
                         <input type="checkbox" class="form-check-input" id="lockSwitch" v-model="isButtonLocked" />
                         <label class="form-check-label" for="lockSwitch">
-                            {{ lockLabel }}
                         </label>
                     </div>
                 </div>
             </div>
             <div class="garage">
-                <transition name="door">
-                    <div v-if="showGarage" class="garage-door"></div>
-                </transition>
             </div>
         </div>
     </div>
 </div>`,
         data() {
+            context.qDatabaseInteractor
+                .getEventManager()
+                .addEventListener(DATABASE_EVENTS.CONNECTED, this.onDatabaseConnected.bind(this))
+                .addEventListener(DATABASE_EVENTS.DISCONNECTED, this.onDatabaseDisconnected.bind(this))
+                .addEventListener(DATABASE_EVENTS.QUERY_ALL_ENTITIES, this.onQueryAllEntities.bind(this));
+
             return {
-                garageDoors: [
-                    { id: 1, name: "Garage Door 1", state: "Closed" },
-                    { id: 2, name: "Garage Door 2", state: "Open" },
-                ],
+                database: context.qDatabaseInteractor,
+                isDatabaseConnected: false,
+                garageDoors: [],
                 selectedGarageDoor: 1,
                 isButtonLocked: true,
                 showGarage: false,
+                percentClosed: 0,
             };
         },
         computed: {
-            currentState() {
-                const door = this.garageDoors.find(
-                    (door) => door.id === this.selectedGarageDoor
-                );
-                return door ? door.state : "";
-            },
-            buttonLabel() {
-                return this.currentState === "Open" ? "Close Door" : "Open Door";
-            },
-            lockLabel() {
-                return this.isButtonLocked ? "Unlock Button" : "Lock Button";
-            },
+            
         },
-        watch: {
-            currentState(newState) {
-                this.showGarage = newState === "Closed";
-            },
+        
+        mounted() {
+            this.isDatabaseConnected = this.database.isConnected();
+
+            if (this.isDatabaseConnected) {
+                this.onDatabaseConnected();
+            }
         },
+
         methods: {
-            toggleGarageDoor() {
-                const door = this.garageDoors.find(
-                    (door) => door.id === this.selectedGarageDoor
-                );
-                if (door) {
-                    door.state = door.state === "Open" ? "Closed" : "Open";
-                }
+            onDatabaseConnected() {
+                this.isDatabaseConnected = true;
+                this.database.queryAllEntities("GarageDoor");
+            },
+
+            onDatabaseDisconnected() {
+                this.isDatabaseConnected = false;
+            },
+
+            onQueryAllEntities(entities) {
+                this.garageDoors = entities;
             },
         },
-        // data() {
-        //     context.qDatabaseInteractor
-        //         .getEventManager()
-        //         .addEventListener(DATABASE_EVENTS.CONNECTED, this.onDatabaseConnected.bind(this))
-        //         .addEventListener(DATABASE_EVENTS.DISCONNECTED, this.onDatabaseDisconnected.bind(this));
-
-        //     return {
-        //         database: context.qDatabaseInteractor,
-        //         isDatabaseConnected: false,
-        //         garageDoors: [],
-        //         selectedDoor: null,
-        //         state: null,
-        //         locked: true,
-        //     }
-        // },
-
-        // mounted() {
-        //     this.isDatabaseConnected = this.database.isConnected();
-        // },
-
-        // methods: {
-        //     onDatabaseConnected() {
-        //         this.isDatabaseConnected = true;
-        //     },
-
-        //     onDatabaseDisconnected() {
-        //         this.isDatabaseConnected = false;
-        //     },
-        // },
-
-        // computed: {
-        //     isRemoteEnabled() {
-        //         return this.isDatabaseConnected && this.garageDoors.length > 0 && this.selectedDoor !== null && this.state !== null && !this.locked;
-        //     }
-        // }
     })
 }
