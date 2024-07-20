@@ -50,11 +50,14 @@ func main() {
 	dbWorker.Signals.Disconnected.Connect(qdb.Slot(leaderElectionWorker.OnDatabaseDisconnected))
 	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(garageController.OnSchemaUpdated))
 	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(ttsController.OnSchemaUpdated))
+	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(garageStatusCalculator.OnSchemaUpdated))
 
 	leaderElectionWorker.Signals.BecameLeader.Connect(qdb.Slot(garageController.OnBecameLeader))
 	leaderElectionWorker.Signals.BecameLeader.Connect(qdb.Slot(ttsController.OnBecameLeader))
+	leaderElectionWorker.Signals.BecameLeader.Connect(qdb.Slot(garageStatusCalculator.OnBecameLeader))
 	leaderElectionWorker.Signals.LosingLeadership.Connect(qdb.Slot(garageController.OnLostLeadership))
 	leaderElectionWorker.Signals.LosingLeadership.Connect(qdb.Slot(ttsController.OnLostLeadership))
+	leaderElectionWorker.Signals.LosingLeadership.Connect(qdb.Slot(garageStatusCalculator.OnLostLeadership))
 
 	// Create a new application configuration
 	config := qdb.ApplicationConfig{
@@ -65,6 +68,7 @@ func main() {
 			leaderElectionWorker,
 			garageController,
 			ttsController,
+			garageStatusCalculator,
 		},
 	}
 
