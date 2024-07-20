@@ -162,5 +162,9 @@ func (gsc *GarageStatusCalculator) DoWork() {
 
 		door := qdb.NewEntity(gsc.db, doorId)
 		door.GetField("PercentClosed").PushInt(movingGarageDoor.PercentClosed)
+
+		if movingGarageDoor.PercentClosed == 0 {
+			door.GetField("Moving").PushBool(false)
+		}
 	}
 }
