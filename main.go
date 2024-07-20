@@ -35,6 +35,7 @@ func main() {
 	schemaValidator := qdb.NewSchemaValidator(db)
 	garageController := NewGarageController(db)
 	ttsController := NewTTSController(db)
+	garageStatusCalculator := NewGarageStatusCalculator(db)
 
 	schemaValidator.AddEntity("Root", "SchemaUpdateTrigger")
 	schemaValidator.AddEntity("GarageController", "OpenTTS", "CloseTTS", "OpenReminderTTS", "OpenReminderInterval")

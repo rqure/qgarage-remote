@@ -157,7 +157,7 @@ func (gsc *GarageStatusCalculator) DoWork() {
 			timeElapsedBeforePause := (movingGarageDoor.InitialPercentClosed / 100) * movingGarageDoor.TotalTimeToClose
 			timeElapsedAfterResume := time.Since(movingGarageDoor.ButtonPressTime).Milliseconds()
 			remainingTimeToOpen := max(movingGarageDoor.TotalTimeToOpen-(timeElapsedBeforePause+timeElapsedAfterResume), 0)
-			movingGarageDoor.PercentClosed = max(movingGarageDoor.TotalTimeToOpen-remainingTimeToOpen, 0) / movingGarageDoor.TotalTimeToOpen * 100
+			movingGarageDoor.PercentClosed = remainingTimeToOpen / movingGarageDoor.TotalTimeToOpen * 100
 		}
 
 		door := qdb.NewEntity(gsc.db, doorId)
