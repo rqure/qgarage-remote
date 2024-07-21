@@ -77,8 +77,8 @@ function registerRemoteComponent(app, context) {
                 this.isDatabaseConnected = false;
             },
 
-            onQueryAllEntities(entities) {
-                this.garageDoors = entities;
+            onQueryAllEntities(result) {
+                this.garageDoors = result["entities"];
             },
         },
     })
