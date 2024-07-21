@@ -3,7 +3,6 @@ module github.com/rqure/qgarage
 go 1.21.6
 
 require (
-	github.com/google/go-cmp v0.5.5
 	github.com/rqure/qdb v1.2.55
 	google.golang.org/protobuf v1.32.0
 )
