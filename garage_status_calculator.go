@@ -54,7 +54,6 @@ func (gsc *GarageStatusCalculator) Reinitialize() {
 		Field: "OpenTrigger",
 		ContextFields: []string{
 			"Moving",
-			"PercentClosed",
 		},
 	}, qdb.NewNotificationCallback(gsc.OnOpenTrigger)))
 
@@ -63,7 +62,6 @@ func (gsc *GarageStatusCalculator) Reinitialize() {
 		Field: "CloseTrigger",
 		ContextFields: []string{
 			"Moving",
-			"PercentClosed",
 		},
 	}, qdb.NewNotificationCallback(gsc.OnCloseTrigger)))
 
@@ -127,19 +125,10 @@ func (gsc *GarageStatusCalculator) OnGarageDoorMoving(notification *qdb.Database
 
 func (gsc *GarageStatusCalculator) OnOpenTrigger(notification *qdb.DatabaseNotification) {
 	moving := qdb.ValueCast[*qdb.Bool](notification.Context[0].Value)
-	percentClosed := qdb.ValueCast[*qdb.Int](notification.Context[1].Value)
 
 	door := qdb.NewEntity(gsc.db, notification.Current.Id)
 	if moving.Raw {
 		moving.Raw = false
-	} else {
-		moving.Raw = true
-		door.GetField("Closing").PushBool(false)
-	}
-
-	if percentClosed.Raw == 100 || percentClosed.Raw == 0 {
-		door.GetField("Moving").PushBool(moving.Raw)
-	} else {
 		// Set Moving without changing the writetime
 		// This is important because writetime signifies when the button
 		// was originally pressed, and we want to keep that information
@@ -158,24 +147,18 @@ func (gsc *GarageStatusCalculator) OnOpenTrigger(notification *qdb.DatabaseNotif
 				WriteTime: &qdb.Timestamp{Raw: notification.Context[0].WriteTime},
 			},
 		})
+	} else {
+		door.GetField("Moving").PushBool(true)
+		door.GetField("Closing").PushBool(false)
 	}
 }
 
 func (gsc *GarageStatusCalculator) OnCloseTrigger(notification *qdb.DatabaseNotification) {
 	moving := qdb.ValueCast[*qdb.Bool](notification.Context[0].Value)
-	percentClosed := qdb.ValueCast[*qdb.Int](notification.Context[1].Value)
 
 	door := qdb.NewEntity(gsc.db, notification.Current.Id)
 	if moving.Raw {
 		moving.Raw = false
-	} else {
-		moving.Raw = true
-		door.GetField("Closing").PushBool(true)
-	}
-
-	if percentClosed.Raw == 100 || percentClosed.Raw == 0 {
-		door.GetField("Moving").PushBool(moving.Raw)
-	} else {
 		// Set Moving without changing the writetime
 		// This is important because writetime signifies when the button
 		// was originally pressed, and we want to keep that information
@@ -194,6 +177,9 @@ func (gsc *GarageStatusCalculator) OnCloseTrigger(notification *qdb.DatabaseNoti
 				WriteTime: &qdb.Timestamp{Raw: notification.Context[0].WriteTime},
 			},
 		})
+	} else {
+		door.GetField("Closing").PushBool(true)
+		door.GetField("Moving").PushBool(true)
 	}
 }
 
@@ -225,22 +211,26 @@ func (gsc *GarageStatusCalculator) DoWork() {
 
 		if movingGarageDoor.Closing {
 			// Remaining time to Close = Total Time to Close - ( Time elapsed before pause + Time elapsed after resume)
-			timeElapsedBeforePause := int64(0)
+			timeElapsedBeforePause := float64(0)
 			if movingGarageDoor.InitialPercentClosed > 0 {
-				timeElapsedBeforePause = (movingGarageDoor.InitialPercentClosed / 100) * movingGarageDoor.TotalTimeToOpen
+				timeElapsedBeforePause = (float64(movingGarageDoor.InitialPercentClosed) / 100) * float64(movingGarageDoor.TotalTimeToOpen)
 			}
-			timeElapsedAfterResume := time.Since(movingGarageDoor.ButtonPressTime).Milliseconds()
-			remainingTimeToClose := max(movingGarageDoor.TotalTimeToClose-(timeElapsedBeforePause+timeElapsedAfterResume), 0)
-			percentClosed = float64(max(movingGarageDoor.TotalTimeToClose-remainingTimeToClose, 0)) / float64(movingGarageDoor.TotalTimeToClose) * float64(100)
+			timeElapsedAfterResume := float64(time.Since(movingGarageDoor.ButtonPressTime).Milliseconds())
+			remainingTimeToClose := max(float64(movingGarageDoor.TotalTimeToClose)-(timeElapsedBeforePause+timeElapsedAfterResume), 0)
+			percentClosed = max(float64(movingGarageDoor.TotalTimeToClose)-remainingTimeToClose, 0) / float64(movingGarageDoor.TotalTimeToClose) * float64(100)
+
+			qdb.Debug("[GarageStatusCalculator::DoWork] Door %s: Time elapsed before pause: %f, Time elapsed after resume: %f, Remaining time to close: %f, Percent closed: %f", doorId, timeElapsedBeforePause, timeElapsedAfterResume, remainingTimeToClose, percentClosed)
 		} else {
 			// Remaining time to Open = Total Time to Open - ( Time elapsed before pause + Time elapsed after resume)
-			timeElapsedBeforePause := int64(0)
+			timeElapsedBeforePause := float64(0)
 			if movingGarageDoor.InitialPercentClosed < 100 {
-				timeElapsedBeforePause = (movingGarageDoor.InitialPercentClosed / 100) * movingGarageDoor.TotalTimeToClose
+				timeElapsedBeforePause = (float64(movingGarageDoor.InitialPercentClosed) / 100) * float64(movingGarageDoor.TotalTimeToClose)
 			}
-			timeElapsedAfterResume := time.Since(movingGarageDoor.ButtonPressTime).Milliseconds()
-			remainingTimeToOpen := max(movingGarageDoor.TotalTimeToOpen-(timeElapsedBeforePause+timeElapsedAfterResume), 0)
+			timeElapsedAfterResume := float64(time.Since(movingGarageDoor.ButtonPressTime).Milliseconds())
+			remainingTimeToOpen := max(float64(movingGarageDoor.TotalTimeToOpen)-(timeElapsedBeforePause+timeElapsedAfterResume), 0)
 			percentClosed = float64(remainingTimeToOpen) / float64(movingGarageDoor.TotalTimeToOpen) * float64(100)
+
+			qdb.Debug("[GarageStatusCalculator::DoWork] Door %s: Time elapsed before pause: %f, Time elapsed after resume: %f, Remaining time to open: %f, Percent closed: %f", doorId, timeElapsedBeforePause, timeElapsedAfterResume, remainingTimeToOpen, percentClosed)
 		}
 
 		door := qdb.NewEntity(gsc.db, doorId)
