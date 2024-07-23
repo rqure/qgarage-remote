@@ -28,47 +28,14 @@ body {
 
 .garage {
     width: 100%;
-    height: 150px;
-    background-color: transparent;
-    border: 1px solid #999;
-    margin-top: 10px;
+    height: 500px;
 }
 
-.garage-door {
-    width: 100%;
-    height: 150px;
-    background-color: #ccc;
-    border: 1px solid #999;
-}
-
-.door-enter-active {
+.garage-inner {
     width: 100%;
     height: 100%;
-    background-color: #ccc;
-    animation: closeDoor 1s ease-in-out;
 }
 
-.door-leave-active {
+.garage-inner-fill {
     width: 100%;
-    height: 100%;
-    background-color: #ccc;
-    animation: openDoor 1s ease-in-out;
-}
-
-@keyframes openDoor {
-    0% {
-        height: 150px;
-    }
-    100% {
-        height: 0px;
-    }
-}
-
-@keyframes closeDoor {
-    0% {
-        height: 0px;
-    }
-    100% {
-        height: 150px;
-    }
 }

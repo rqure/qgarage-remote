@@ -9,21 +9,14 @@ function registerRemoteComponent(app, context) {
 <div class="container mt-5">
     <div class="card">
         <div class="card-header">
-            <h3>Garage Door Remote</h3>
-        </div>
-        <div class="card-body">
             <div class="row">
+                <div class="col"></div>
                 <div class="col-auto">
-                    <select class="form-control" id="garageDoorSelect" v-model="selectedGarageDoor">
+                    <select class="form-control" id="garageDoorSelect" v-model="selectedGarageDoorId" @change="onDoorSelected" >
                         <option v-for="door in garageDoors" :key="door.getId()" :value="door.getId()">
                             {{ door.getName() }}
                         </option>
                     </select>
-                </div>
-                <div class="col-auto">
-                    <button class="btn btn-primary" :disabled="isButtonLocked" @click="toggleGarageDoor">
-                        Open / Close
-                    </button>
                 </div>
                 <div class="col-auto">
                     <div class="form-check form-switch mt-2">
@@ -32,8 +25,16 @@ function registerRemoteComponent(app, context) {
                         </label>
                     </div>
                 </div>
+                <div class="col"></div>
             </div>
+        </div>
+        <div class="card-body">
             <div class="garage">
+                <button type="button" class="btn btn-outline-success btn-lg garage-inner" :disabled="isButtonLocked" @click="onDoorButtonPressed">
+                    {{nextGarageStatus}}
+                    <div class="garage-inner-fill text-bg-success" :style="garageStyle">
+                    </div>
+                </button>
             </div>
         </div>
     </div>
@@ -43,20 +44,60 @@ function registerRemoteComponent(app, context) {
                 .getEventManager()
                 .addEventListener(DATABASE_EVENTS.CONNECTED, this.onDatabaseConnected.bind(this))
                 .addEventListener(DATABASE_EVENTS.DISCONNECTED, this.onDatabaseDisconnected.bind(this))
+                .addEventListener(DATABASE_EVENTS.REGISTER_NOTIFICATION_RESPONSE, this.onRegisterNotification.bind(this))
+                .addEventListener(DATABASE_EVENTS.NOTIFICATION, this.onNotification.bind(this))
                 .addEventListener(DATABASE_EVENTS.QUERY_ALL_ENTITIES, this.onQueryAllEntities.bind(this));
 
             return {
                 database: context.qDatabaseInteractor,
                 isDatabaseConnected: false,
                 garageDoors: [],
-                selectedGarageDoor: 1,
+                selectedGarageDoorId: "",
                 isButtonLocked: true,
-                showGarage: false,
+                notificationTokens: [],
                 percentClosed: 0,
+                lastGarageStatus: ""
             };
         },
+
         computed: {
-            
+            garageStatus() {
+                if( this.percentClosed === 100 ) {
+                    return "Closed"
+                } else if ( this.percentClosed === 0 ) {
+                    return "Opened";
+                } else if ( this.lastGarageStatus === "Closed" ) {
+                    return "Opening";
+                } else if ( this.lastGarageStatus === "Opened" ) {
+                    return "Closing";
+                } else {
+                    return "Partially Opened";
+                }
+            },
+
+            nextGarageStatus() {
+                if ( this.percentClosed === 100 ) {
+                    return "Open";
+                } else if ( this.percentClosed === 0 ) {
+                    return "Close";
+                } else if ( this.lastGarageStatus === "Closed" ) {
+                    return "Stop Opening";
+                } else if ( this.lastGarageStatus === "Opened" ) {
+                    return "Stop Closing";
+                } else {
+                    return "Open / Close";
+                }
+            },
+
+            doorButtonDisabled() {
+                return this.isButtonLocked || !this.isDatabaseConnected || this.garageDoors.length === 0 || !this.selectedGarageDoorId || !this.garageDoors[this.selectedGarageDoorId];
+            },
+
+            garageStyle() {
+                return {
+                    height: this.percentClosed + "%"
+                }
+            }
         },
         
         mounted() {
@@ -77,8 +118,75 @@ function registerRemoteComponent(app, context) {
                 this.isDatabaseConnected = false;
             },
 
+            onDoorButtonPressed() {
+                this.isButtonLocked = true;
+                
+                const value = new proto.qdb.Int();
+                value.setRaw(0);
+                const valueAsAny = new proto.google.protobuf.Any();
+                valueAsAny.pack(value.serializeBinary(), qMessageType(value));
+
+                if( this.percentClosed === 100 ) {
+                    this.database.write([{
+                        id: this.selectedGarageDoorId,
+                        field: "OpenTrigger",
+                        value: valueAsAny
+                    }]);
+                } else if ( this.percentClosed === 0 ) {
+                    this.database.write([{
+                        id: this.selectedGarageDoorId,
+                        field: "CloseTrigger",
+                        value: valueAsAny
+                    }]);
+                } else if ( this.lastGarageStatus === "Closed" ) {
+                    this.database.write([{
+                        id: this.selectedGarageDoorId,
+                        field: "CloseTrigger",
+                        value: valueAsAny
+                    }]);
+                } else if ( this.lastGarageStatus === "Opened" ) {
+                    this.database.write([{
+                        id: this.selectedGarageDoorId,
+                        field: "OpenTrigger",
+                        value: valueAsAny
+                    }]);
+                } else {
+                    this.database.write([{
+                        id: this.selectedGarageDoorId,
+                        field: "CloseTrigger",
+                        value: valueAsAny
+                    }]);
+                }
+            },
+
             onQueryAllEntities(result) {
                 this.garageDoors = result["entities"];
+                this.selectedGarageDoorId = this.garageDoors[0].getId();
+            },
+
+            onDoorSelected() {
+                if (this.notificationTokens.length > 0) {
+                    this.database.unregisterNotifications(this.notificationTokens.slice());
+                    this.notificationTokens = [];
+                }
+
+                this.database.registerNotifications([
+                    { id: this.selectedGarageDoorId, field: "PercentClosed", notifyOnChange: true }
+                ]);
+            },
+
+            onRegisterNotification(event) {
+                this.notificationTokens = event.tokens;
+            },
+
+            onNotification(event) {
+                const notification = event.notification.getCurrent();
+                const protoClass = notification.getValue().getTypeName().split('.').reduce((o,i)=> o[i], proto);
+                this.percentClosed = protoClass.deserializeBinary(field.getValue().getValue_asU8()).getRaw();
+
+                if ( this.garageStatus === "Closed" || this.garageStatus === "Opened" ) {
+                    this.lastGarageStatus = this.garageStatus;
+                }
             },
         },
     })
