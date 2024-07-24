@@ -12,7 +12,7 @@ function registerRemoteComponent(app, context) {
             <div class="row">
                 <div class="col"></div>
                 <div class="col-auto">
-                    <select class="form-control" id="garageDoorSelect" v-model="selectedGarageDoorId" @change="onDoorSelected" >
+                    <select class="form-control" id="garageDoorSelect" v-model="selectedGarageDoorId">
                         <option v-for="door in garageDoors" :key="door.getId()" :value="door.getId()">
                             {{ door.getName() }}
                         </option>
@@ -32,8 +32,8 @@ function registerRemoteComponent(app, context) {
             <div class="garage">
                 <button type="button" class="btn btn-outline-success btn-lg garage-inner" :disabled="isButtonLocked" @click="onDoorButtonPressed">
                     {{nextGarageStatus}}
-                    <div class="garage-inner-fill text-bg-success" :style="garageStyle">
-                    </div>
+                </button>                
+                <button type="button" class="garage-inner-fill btn btn-secondary btn-lg" :style="garageStyle" :disabled="true">
                 </button>
             </div>
         </div>
@@ -46,6 +46,7 @@ function registerRemoteComponent(app, context) {
                 .addEventListener(DATABASE_EVENTS.DISCONNECTED, this.onDatabaseDisconnected.bind(this))
                 .addEventListener(DATABASE_EVENTS.REGISTER_NOTIFICATION_RESPONSE, this.onRegisterNotification.bind(this))
                 .addEventListener(DATABASE_EVENTS.NOTIFICATION, this.onNotification.bind(this))
+                .addEventListener(DATABASE_EVENTS.READ_RESULT, this.onReadResult.bind(this))
                 .addEventListener(DATABASE_EVENTS.QUERY_ALL_ENTITIES, this.onQueryAllEntities.bind(this));
 
             return {
@@ -164,17 +165,6 @@ function registerRemoteComponent(app, context) {
                 this.selectedGarageDoorId = this.garageDoors[0].getId();
             },
 
-            onDoorSelected() {
-                if (this.notificationTokens.length > 0) {
-                    this.database.unregisterNotifications(this.notificationTokens.slice());
-                    this.notificationTokens = [];
-                }
-
-                this.database.registerNotifications([
-                    { id: this.selectedGarageDoorId, field: "PercentClosed", notifyOnChange: true }
-                ]);
-            },
-
             onRegisterNotification(event) {
                 this.notificationTokens = event.tokens;
             },
@@ -184,10 +174,37 @@ function registerRemoteComponent(app, context) {
                 const protoClass = notification.getValue().getTypeName().split('.').reduce((o,i)=> o[i], proto);
                 this.percentClosed = protoClass.deserializeBinary(field.getValue().getValue_asU8()).getRaw();
 
+                qInfo(`Percent Closed: '${this.percentClosed}', Garage Status: '${this.garageStatus}'`);
+
                 if ( this.garageStatus === "Closed" || this.garageStatus === "Opened" ) {
                     this.lastGarageStatus = this.garageStatus;
                 }
             },
+
+            onReadResult(event) {
+                const protoClass = event[0].getValue().getTypeName().split('.').reduce((o,i)=> o[i], proto);
+                this.percentClosed = protoClass.deserializeBinary(event[0].getValue().getValue_asU8()).getRaw();
+                
+                qInfo(`Read Result: '${this.percentClosed}'`);
+            }
         },
+        
+        watch: {
+            selectedGarageDoorId: function(newVal) {
+                qInfo(`Selected Garage Door: '${newVal}'`);
+                if (this.notificationTokens.length > 0) {
+                    this.database.unregisterNotifications(this.notificationTokens.slice());
+                    this.notificationTokens = [];
+                }
+
+                this.database.registerNotifications([
+                    { id: newVal, field: "PercentClosed", notifyOnChange: true }
+                ]);
+
+                this.database.read([
+                    { id: newVal, field: "PercentClosed" }
+                ]);
+            },
+        }
     })
 }
