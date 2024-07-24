@@ -30,8 +30,8 @@ function registerRemoteComponent(app, context) {
         </div>
         <div class="card-body">
             <div class="garage">
-                <button type="button" class="btn btn-outline-success btn-lg garage-inner" :disabled="isButtonLocked" @click="onDoorButtonPressed">
-                    {{nextGarageStatus}}
+                <button type="button" class="btn btn-outline-light btn-lg garage-inner" :disabled="isButtonLocked" @click="onDoorButtonPressed">
+                    {{nextGarageStatus}} {{lockedText}}
                 </button>                
                 <button type="button" class="garage-inner-fill btn btn-secondary btn-lg" :style="garageStyle" :disabled="true">
                 </button>
@@ -76,6 +76,10 @@ function registerRemoteComponent(app, context) {
                 }
             },
 
+            lockedText() {
+                return this.isButtonLocked ? "(Locked)" : "";
+            },
+
             nextGarageStatus() {
                 if ( this.percentClosed === 100 ) {
                     return "Open";
@@ -96,7 +100,8 @@ function registerRemoteComponent(app, context) {
 
             garageStyle() {
                 return {
-                    height: this.percentClosed + "%"
+                    height: this.percentClosed + "%",
+                    transition: "height 0.5s linear"
                 }
             }
         },
@@ -172,9 +177,7 @@ function registerRemoteComponent(app, context) {
             onNotification(event) {
                 const notification = event.notification.getCurrent();
                 const protoClass = notification.getValue().getTypeName().split('.').reduce((o,i)=> o[i], proto);
-                this.percentClosed = protoClass.deserializeBinary(field.getValue().getValue_asU8()).getRaw();
-
-                qInfo(`Percent Closed: '${this.percentClosed}', Garage Status: '${this.garageStatus}'`);
+                this.percentClosed = protoClass.deserializeBinary(notification.getValue().getValue_asU8()).getRaw();
 
                 if ( this.garageStatus === "Closed" || this.garageStatus === "Opened" ) {
                     this.lastGarageStatus = this.garageStatus;
@@ -184,14 +187,11 @@ function registerRemoteComponent(app, context) {
             onReadResult(event) {
                 const protoClass = event[0].getValue().getTypeName().split('.').reduce((o,i)=> o[i], proto);
                 this.percentClosed = protoClass.deserializeBinary(event[0].getValue().getValue_asU8()).getRaw();
-                
-                qInfo(`Read Result: '${this.percentClosed}'`);
             }
         },
         
         watch: {
             selectedGarageDoorId: function(newVal) {
-                qInfo(`Selected Garage Door: '${newVal}'`);
                 if (this.notificationTokens.length > 0) {
                     this.database.unregisterNotifications(this.notificationTokens.slice());
                     this.notificationTokens = [];
