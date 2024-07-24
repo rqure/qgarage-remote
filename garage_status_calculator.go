@@ -1,11 +1,16 @@
 package main
 
 import (
+	"math"
 	"time"
 
 	qdb "github.com/rqure/qdb/src"
 	"google.golang.org/protobuf/types/known/anypb"
 )
+
+func isApproximatelyEqual(a, b, tolerance float64) bool {
+	return math.Abs(a-b) < tolerance
+}
 
 type MovingGarageDoorContext struct {
 	InitialPercentClosed int64
@@ -148,8 +153,8 @@ func (gsc *GarageStatusCalculator) OnOpenTrigger(notification *qdb.DatabaseNotif
 			},
 		})
 	} else {
-		door.GetField("Moving").PushBool(true)
 		door.GetField("Closing").PushBool(false)
+		door.GetField("Moving").PushBool(true)
 	}
 }
 
@@ -212,32 +217,29 @@ func (gsc *GarageStatusCalculator) DoWork() {
 		if movingGarageDoor.Closing {
 			// Remaining time to Close = Total Time to Close - ( Time elapsed before pause + Time elapsed after resume)
 			timeElapsedBeforePause := float64(0)
-			if movingGarageDoor.InitialPercentClosed > 0 {
+			if movingGarageDoor.InitialPercentClosed > 0 && movingGarageDoor.InitialPercentClosed < 100 {
 				timeElapsedBeforePause = (float64(movingGarageDoor.InitialPercentClosed) / 100) * float64(movingGarageDoor.TotalTimeToOpen)
 			}
 			timeElapsedAfterResume := float64(time.Since(movingGarageDoor.ButtonPressTime).Milliseconds())
 			remainingTimeToClose := max(float64(movingGarageDoor.TotalTimeToClose)-(timeElapsedBeforePause+timeElapsedAfterResume), 0)
 			percentClosed = max(float64(movingGarageDoor.TotalTimeToClose)-remainingTimeToClose, 0) / float64(movingGarageDoor.TotalTimeToClose) * float64(100)
-
-			qdb.Debug("[GarageStatusCalculator::DoWork] Door %s: Time elapsed before pause: %f, Time elapsed after resume: %f, Remaining time to close: %f, Percent closed: %f", doorId, timeElapsedBeforePause, timeElapsedAfterResume, remainingTimeToClose, percentClosed)
 		} else {
 			// Remaining time to Open = Total Time to Open - ( Time elapsed before pause + Time elapsed after resume)
 			timeElapsedBeforePause := float64(0)
-			if movingGarageDoor.InitialPercentClosed < 100 {
+			if movingGarageDoor.InitialPercentClosed < 100 && movingGarageDoor.InitialPercentClosed > 0 {
 				timeElapsedBeforePause = (float64(movingGarageDoor.InitialPercentClosed) / 100) * float64(movingGarageDoor.TotalTimeToClose)
 			}
 			timeElapsedAfterResume := float64(time.Since(movingGarageDoor.ButtonPressTime).Milliseconds())
 			remainingTimeToOpen := max(float64(movingGarageDoor.TotalTimeToOpen)-(timeElapsedBeforePause+timeElapsedAfterResume), 0)
 			percentClosed = float64(remainingTimeToOpen) / float64(movingGarageDoor.TotalTimeToOpen) * float64(100)
-
-			qdb.Debug("[GarageStatusCalculator::DoWork] Door %s: Time elapsed before pause: %f, Time elapsed after resume: %f, Remaining time to open: %f, Percent closed: %f", doorId, timeElapsedBeforePause, timeElapsedAfterResume, remainingTimeToOpen, percentClosed)
 		}
 
 		door := qdb.NewEntity(gsc.db, doorId)
 		movingGarageDoor.PercentClosed = int64(percentClosed)
 		door.GetField("PercentClosed").PushInt(movingGarageDoor.PercentClosed)
 
-		if percentClosed == 0 || percentClosed == 100 {
+		if isApproximatelyEqual(percentClosed, 0.0, 1.0/float64(movingGarageDoor.TotalTimeToOpen)) ||
+			isApproximatelyEqual(percentClosed, 100.0, 1.0/float64(movingGarageDoor.TotalTimeToClose)) {
 			door.GetField("Moving").PushBool(false)
 		}
 	}

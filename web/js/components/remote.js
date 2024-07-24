@@ -31,7 +31,7 @@ function registerRemoteComponent(app, context) {
         <div class="card-body">
             <div class="garage">
                 <button type="button" class="btn btn-outline-light btn-lg garage-inner" :disabled="isButtonLocked" @click="onDoorButtonPressed">
-                    {{nextGarageStatus}} {{lockedText}}
+                    {{nextGarageStatus}} <div v-if="isButtonLocked" style="display:inline;">(<i class="fa fa-lock"></i>)</div>
                 </button>                
                 <button type="button" class="garage-inner-fill btn btn-secondary btn-lg" :style="garageStyle" :disabled="true">
                 </button>
@@ -74,10 +74,6 @@ function registerRemoteComponent(app, context) {
                 } else {
                     return "Partially Opened";
                 }
-            },
-
-            lockedText() {
-                return this.isButtonLocked ? "(Locked)" : "";
             },
 
             nextGarageStatus() {
