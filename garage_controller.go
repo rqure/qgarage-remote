@@ -2,7 +2,6 @@ package main
 
 import (
 	qdb "github.com/rqure/qdb/src"
-	"github.com/rqure/qgarage/devices"
 )
 
 type GarageController struct {
@@ -69,7 +68,7 @@ func (gc *GarageController) Reinitialize() {
 	for _, door := range doors {
 		statusDeviceId := door.GetField("StatusDevice").PullEntityReference()
 		statusDeviceEntity := qdb.NewEntity(gc.db, statusDeviceId)
-		statusDevice := devices.MakeStatusDevice(statusDeviceEntity.GetType())
+		statusDevice := MakeStatusDevice(statusDeviceEntity.GetType())
 
 		if statusDevice == nil {
 			qdb.Warn("[GarageController::Reinitialize] Status device not found for door %s (%s)", door.GetId(), door.GetName())
@@ -128,7 +127,7 @@ func (gc *GarageController) OnOpenTrigger(notification *qdb.DatabaseNotification
 	}
 
 	controlDeviceEntity := qdb.NewEntity(gc.db, controlDeviceEntityRef.Raw)
-	controlDevice := devices.MakeControlDevice(controlDeviceEntity.GetType())
+	controlDevice := MakeControlDevice(controlDeviceEntity.GetType())
 	if controlDevice == nil {
 		qdb.Warn("[GarageController::OnOpenTrigger] Control device not found for entity %s (%s)", controlDeviceEntity.GetId(), controlDeviceEntity.GetName())
 		return
@@ -146,7 +145,7 @@ func (gc *GarageController) OnCloseTrigger(notification *qdb.DatabaseNotificatio
 	}
 
 	controlDeviceEntity := qdb.NewEntity(gc.db, controlDeviceEntityRef.Raw)
-	controlDevice := devices.MakeControlDevice(controlDeviceEntity.GetType())
+	controlDevice := MakeControlDevice(controlDeviceEntity.GetType())
 	if controlDevice == nil {
 		qdb.Warn("[GarageController::OnCloseTrigger] Control device not found for entity %s (%s)", controlDeviceEntity.GetId(), controlDeviceEntity.GetName())
 		return

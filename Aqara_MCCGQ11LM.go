@@ -1,4 +1,4 @@
-package devices
+package main
 
 import qdb "github.com/rqure/qdb/src"
 
