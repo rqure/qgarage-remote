@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"time"
 
@@ -138,13 +139,39 @@ func (tc *TTSController) DoTTS(doorName string, ttsType TTSType) {
 		tts = strings.ReplaceAll(tts, "{Door}", doorName)
 
 		// Perform TTS
-		audioControllers := qdb.NewEntityFinder(tc.db).Find(qdb.SearchCriteria{
-			EntityType: "AudioController",
+		alertControllers := qdb.NewEntityFinder(tc.db).Find(qdb.SearchCriteria{
+			EntityType: "AlertController",
 			Conditions: []qdb.FieldConditionEval{},
 		})
 
-		for _, audioController := range audioControllers {
-			audioController.GetField("TextToSpeech").PushString(tts)
+		for _, alertController := range alertControllers {
+			tc.db.Write([]*qdb.DatabaseRequest{
+				{
+					Id:    alertController.GetId(),
+					Field: "ApplicationName",
+					Value: qdb.NewStringValue(os.Getenv("QDB_APP_NAME")),
+				},
+				{
+					Id:    alertController.GetId(),
+					Field: "Description",
+					Value: qdb.NewStringValue(tts),
+				},
+				{
+					Id:    alertController.GetId(),
+					Field: "TTSAlert",
+					Value: qdb.NewBoolValue(strings.Contains(os.Getenv("ALERTS"), "TTS")),
+				},
+				{
+					Id:    alertController.GetId(),
+					Field: "EmailAlert",
+					Value: qdb.NewBoolValue(strings.Contains(os.Getenv("ALERTS"), "EMAIL")),
+				},
+				{
+					Id:    alertController.GetId(),
+					Field: "SendTrigger",
+					Value: qdb.NewIntValue(0),
+				},
+			})
 		}
 	}
 }

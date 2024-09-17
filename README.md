@@ -1,1 +1,1 @@
-# qgarage-remote
+# qgarage
