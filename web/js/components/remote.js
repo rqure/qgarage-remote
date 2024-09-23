@@ -43,11 +43,7 @@ function registerRemoteComponent(app, context) {
             context.qDatabaseInteractor
                 .getEventManager()
                 .addEventListener(DATABASE_EVENTS.CONNECTED, this.onDatabaseConnected.bind(this))
-                .addEventListener(DATABASE_EVENTS.DISCONNECTED, this.onDatabaseDisconnected.bind(this))
-                .addEventListener(DATABASE_EVENTS.REGISTER_NOTIFICATION_RESPONSE, this.onRegisterNotification.bind(this))
-                .addEventListener(DATABASE_EVENTS.NOTIFICATION, this.onNotification.bind(this))
-                .addEventListener(DATABASE_EVENTS.READ_RESULT, this.onReadResult.bind(this))
-                .addEventListener(DATABASE_EVENTS.QUERY_ALL_ENTITIES, this.onQueryAllEntities.bind(this));
+                .addEventListener(DATABASE_EVENTS.DISCONNECTED, this.onDatabaseDisconnected.bind(this));
 
             return {
                 database: context.qDatabaseInteractor,
@@ -103,9 +99,7 @@ function registerRemoteComponent(app, context) {
         },
         
         mounted() {
-            this.isDatabaseConnected = this.database.isConnected();
-
-            if (this.isDatabaseConnected) {
+            if (this.database.isConnected()) {
                 this.onDatabaseConnected();
             }
         },
@@ -113,7 +107,11 @@ function registerRemoteComponent(app, context) {
         methods: {
             onDatabaseConnected() {
                 this.isDatabaseConnected = true;
-                this.database.queryAllEntities("GarageDoor");
+                
+                this.database
+                    .queryAllEntities("GarageDoor")
+                    .then(event => this.onQueryAllEntities(event))
+                    .catch(error => qError(`[Remote::onDatabaseConnected] ${error}`));
             },
 
             onDatabaseDisconnected() {
@@ -133,31 +131,31 @@ function registerRemoteComponent(app, context) {
                         id: this.selectedGarageDoorId,
                         field: "OpenTrigger",
                         value: valueAsAny
-                    }]);
+                    }]).catch(error => qError(`[Remote::onDoorButtonPressed] ${error}`));
                 } else if ( this.percentClosed === 0 ) {
                     this.database.write([{
                         id: this.selectedGarageDoorId,
                         field: "CloseTrigger",
                         value: valueAsAny
-                    }]);
+                    }]).catch(error => qError(`[Remote::onDoorButtonPressed] ${error}`));
                 } else if ( this.lastGarageStatus === "Closed" ) {
                     this.database.write([{
                         id: this.selectedGarageDoorId,
                         field: "CloseTrigger",
                         value: valueAsAny
-                    }]);
+                    }]).catch(error => qError(`[Remote::onDoorButtonPressed] ${error}`));
                 } else if ( this.lastGarageStatus === "Opened" ) {
                     this.database.write([{
                         id: this.selectedGarageDoorId,
                         field: "OpenTrigger",
                         value: valueAsAny
-                    }]);
+                    }]).catch(error => qError(`[Remote::onDoorButtonPressed] ${error}`));
                 } else {
                     this.database.write([{
                         id: this.selectedGarageDoorId,
                         field: "CloseTrigger",
                         value: valueAsAny
-                    }]);
+                    }]).catch(error => qError(`[Remote::onDoorButtonPressed] ${error}`));
                 }
             },
 
@@ -171,7 +169,7 @@ function registerRemoteComponent(app, context) {
             },
 
             onNotification(event) {
-                const notification = event.notification.getCurrent();
+                const notification = event.getCurrent();
                 const protoClass = notification.getValue().getTypeName().split('.').reduce((o,i)=> o[i], proto);
                 this.percentClosed = protoClass.deserializeBinary(notification.getValue().getValue_asU8()).getRaw();
 
@@ -189,17 +187,25 @@ function registerRemoteComponent(app, context) {
         watch: {
             selectedGarageDoorId: function(newVal) {
                 if (this.notificationTokens.length > 0) {
-                    this.database.unregisterNotifications(this.notificationTokens.slice());
-                    this.notificationTokens = [];
+                    this.database
+                        .unregisterNotifications(this.notificationTokens.slice())
+                        .then(() => this.notificationTokens = [])
+                        .catch(error => qError(`[Remote::selectedGarageDoorId] ${error}`));
                 }
 
-                this.database.registerNotifications([
-                    { id: newVal, field: "PercentClosed", notifyOnChange: true }
-                ]);
+                this.database
+                    .registerNotifications([
+                        { id: newVal, field: "PercentClosed", notifyOnChange: true }
+                    ], this.onNotification.bind(this))
+                    .then(event => this.onRegisterNotification(event))
+                    .catch(error => qError(`[Remote::selectedGarageDoorId] ${error}`));
 
-                this.database.read([
-                    { id: newVal, field: "PercentClosed" }
-                ]);
+                this.database
+                    .read([
+                        { id: newVal, field: "PercentClosed" }
+                    ])
+                    .then(event => this.onReadResult(event))
+                    .catch(error => qError(`[Remote::selectedGarageDoorId] ${error}`));
             },
         }
     })
