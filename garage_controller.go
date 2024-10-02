@@ -127,13 +127,13 @@ func (gc *GarageController) OnOpenTrigger(notification *qdb.DatabaseNotification
 	}
 
 	controlDeviceEntity := qdb.NewEntity(gc.db, controlDeviceEntityRef.Raw)
-	controlDevice := MakeControlDevice(controlDeviceEntity.GetType())
+	controlDevice := MakeControlDevice(controlDeviceEntity)
 	if controlDevice == nil {
 		qdb.Warn("[GarageController::OnOpenTrigger] Control device not found for entity %s (%s)", controlDeviceEntity.GetId(), controlDeviceEntity.GetName())
 		return
 	}
 
-	controlDevice.Open(controlDeviceEntityRef.Raw, gc.writeRequests)
+	controlDevice.Open(gc.writeRequests)
 }
 
 func (gc *GarageController) OnCloseTrigger(notification *qdb.DatabaseNotification) {
@@ -145,11 +145,11 @@ func (gc *GarageController) OnCloseTrigger(notification *qdb.DatabaseNotificatio
 	}
 
 	controlDeviceEntity := qdb.NewEntity(gc.db, controlDeviceEntityRef.Raw)
-	controlDevice := MakeControlDevice(controlDeviceEntity.GetType())
+	controlDevice := MakeControlDevice(controlDeviceEntity)
 	if controlDevice == nil {
 		qdb.Warn("[GarageController::OnCloseTrigger] Control device not found for entity %s (%s)", controlDeviceEntity.GetId(), controlDeviceEntity.GetName())
 		return
 	}
 
-	controlDevice.Close(controlDeviceEntityRef.Raw, gc.writeRequests)
+	controlDevice.Close(gc.writeRequests)
 }

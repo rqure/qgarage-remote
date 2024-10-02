@@ -9,10 +9,12 @@ import (
 type IControlDevice interface {
 	GetModel() string
 
+	New(e *qdb.Entity) IControlDevice
+
 	// The channel is used to send commands to the device
 	// These would normally be in the form of database writes
-	Open(controlDeviceEntityId string, writeRequests chan *qdb.DatabaseRequest)
-	Close(controlDeviceEntityId string, writeRequests chan *qdb.DatabaseRequest)
+	Open(writeRequests chan *qdb.DatabaseRequest)
+	Close(writeRequests chan *qdb.DatabaseRequest)
 }
 
 // A status device for a garage door would report
@@ -49,11 +51,11 @@ func MakeStatusDevice(model string) IStatusDevice {
 	return nil
 }
 
-func MakeControlDevice(model string) IControlDevice {
+func MakeControlDevice(e *qdb.Entity) IControlDevice {
 	devices := GetAllControlDevices()
 	for _, device := range devices {
-		if device.GetModel() == model {
-			return device
+		if device.GetModel() == e.GetType() {
+			return device.New(e)
 		}
 	}
 	return nil
