@@ -7,14 +7,14 @@ import (
 )
 
 type Aqara_LLKZMK12LM struct {
-	id          string
-	PulseLength int64
+	id              string
+	StateOnOffDelay int64
 }
 
 func (d *Aqara_LLKZMK12LM) New(e *qdb.Entity) IControlDevice {
 	return &Aqara_LLKZMK12LM{
-		id:          e.GetId(),
-		PulseLength: e.GetField("PulseLength").PullInt(),
+		id:              e.GetId(),
+		StateOnOffDelay: e.GetField("StateOnOffDelay").PullInt(),
 	}
 }
 
@@ -23,7 +23,7 @@ func (d *Aqara_LLKZMK12LM) GetModel() string {
 }
 
 func (d *Aqara_LLKZMK12LM) Open(writeRequests chan *qdb.DatabaseRequest) {
-	if d.PulseLength <= 0 {
+	if d.StateOnOffDelay <= 0 {
 		qdb.Warn("[Aqara_LLKZMK12LM::Open] PulseDuration is 0")
 		return
 	}
@@ -40,7 +40,7 @@ func (d *Aqara_LLKZMK12LM) Open(writeRequests chan *qdb.DatabaseRequest) {
 			Value: qdb.NewIntValue(0),
 		}
 
-		<-time.After(time.Duration(d.PulseLength) * time.Millisecond)
+		<-time.After(time.Duration(d.StateOnOffDelay) * time.Millisecond)
 
 		writeRequests <- &qdb.DatabaseRequest{
 			Id:    d.id,
@@ -51,7 +51,7 @@ func (d *Aqara_LLKZMK12LM) Open(writeRequests chan *qdb.DatabaseRequest) {
 }
 
 func (d *Aqara_LLKZMK12LM) Close(writeRequests chan *qdb.DatabaseRequest) {
-	if d.PulseLength <= 0 {
+	if d.StateOnOffDelay <= 0 {
 		qdb.Warn("[Aqara_LLKZMK12LM::Close] PulseDuration is 0")
 		return
 	}
@@ -68,7 +68,7 @@ func (d *Aqara_LLKZMK12LM) Close(writeRequests chan *qdb.DatabaseRequest) {
 			Value: qdb.NewIntValue(0),
 		}
 
-		<-time.After(time.Duration(d.PulseLength) * time.Millisecond)
+		<-time.After(time.Duration(d.StateOnOffDelay) * time.Millisecond)
 
 		writeRequests <- &qdb.DatabaseRequest{
 			Id:    d.id,
