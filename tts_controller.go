@@ -49,7 +49,7 @@ func (tc *TTSController) Reinitialize() {
 
 	tc.notificationTokens = append(tc.notificationTokens, tc.db.Notify(&qdb.DatabaseNotificationConfig{
 		Type:           "GarageDoor",
-		Field:          "GarageDoorStatus",
+		Field:          "IsClosed",
 		NotifyOnChange: true,
 	}, qdb.NewNotificationCallback(tc.OnGarageDoorStatusChanged)))
 
@@ -100,10 +100,10 @@ func (tc *TTSController) DoWork() {
 }
 
 func (tc *TTSController) OnGarageDoorStatusChanged(notification *qdb.DatabaseNotification) {
-	status := qdb.ValueCast[*qdb.GarageDoorState](notification.Current.Value)
+	isClosed := qdb.ValueCast[*qdb.Bool](notification.Current.Value).Raw
 
 	doorName := qdb.NewEntity(tc.db, notification.Current.Id).GetName()
-	if status.Raw == qdb.GarageDoorState_OPENED {
+	if !isClosed {
 		tc.lastDoorOpenReminder[doorName] = time.Now()
 		tc.DoTTS(doorName, OpenTTS)
 	} else {

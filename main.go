@@ -37,9 +37,15 @@ func main() {
 	ttsController := NewTTSController(db)
 	garageStatusCalculator := NewGarageStatusCalculator(db)
 
-	schemaValidator.AddEntity("Root", "SchemaUpdateTrigger")
-	schemaValidator.AddEntity("GarageController", "OpenTTS", "CloseTTS", "OpenReminderTTS", "OpenReminderInterval")
-	schemaValidator.AddEntity("GarageDoor", "GarageDoorStatus", "ControlDevice", "StatusDevice", "OpenTrigger", "CloseTrigger", "Closing", "Moving", "TimeToOpen", "TimeToClose", "PercentClosed")
+	schemaValidator.AddEntity("GarageController",
+		"OpenTTS", "CloseTTS", "OpenReminderTTS", "OpenReminderInterval")
+
+	schemaValidator.AddEntity("GarageDoor",
+		"IsClosed",
+		"ToggleTrigger", "ToggleTriggerFn",
+		"Closing", "Moving",
+		"TimeToOpen", "TimeToClose",
+		"PercentClosed")
 
 	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(schemaValidator.ValidationRequired))
 	dbWorker.Signals.Connected.Connect(qdb.Slot(schemaValidator.ValidationRequired))

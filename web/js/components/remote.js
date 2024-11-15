@@ -126,37 +126,11 @@ function registerRemoteComponent(app, context) {
                 const valueAsAny = new proto.google.protobuf.Any();
                 valueAsAny.pack(value.serializeBinary(), qMessageType(value));
 
-                if( this.percentClosed === 100 ) {
-                    this.database.write([{
-                        id: this.selectedGarageDoorId,
-                        field: "OpenTrigger",
-                        value: valueAsAny
-                    }]).catch(error => qError(`[Remote::onDoorButtonPressed] ${error}`));
-                } else if ( this.percentClosed === 0 ) {
-                    this.database.write([{
-                        id: this.selectedGarageDoorId,
-                        field: "CloseTrigger",
-                        value: valueAsAny
-                    }]).catch(error => qError(`[Remote::onDoorButtonPressed] ${error}`));
-                } else if ( this.lastGarageStatus === "Closed" ) {
-                    this.database.write([{
-                        id: this.selectedGarageDoorId,
-                        field: "CloseTrigger",
-                        value: valueAsAny
-                    }]).catch(error => qError(`[Remote::onDoorButtonPressed] ${error}`));
-                } else if ( this.lastGarageStatus === "Opened" ) {
-                    this.database.write([{
-                        id: this.selectedGarageDoorId,
-                        field: "OpenTrigger",
-                        value: valueAsAny
-                    }]).catch(error => qError(`[Remote::onDoorButtonPressed] ${error}`));
-                } else {
-                    this.database.write([{
-                        id: this.selectedGarageDoorId,
-                        field: "CloseTrigger",
-                        value: valueAsAny
-                    }]).catch(error => qError(`[Remote::onDoorButtonPressed] ${error}`));
-                }
+                this.database.write([{
+                    id: this.selectedGarageDoorId,
+                    field: "ToggleTrigger",
+                    value: valueAsAny
+                }]).catch(error => qError(`[Remote::onDoorButtonPressed] ${error}`));
             },
 
             onQueryAllEntities(result) {

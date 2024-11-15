@@ -5,7 +5,6 @@ import (
 	"time"
 
 	qdb "github.com/rqure/qdb/src"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func isApproximatelyEqual(a, b, tolerance float64) bool {
@@ -55,24 +54,8 @@ func (gsc *GarageStatusCalculator) Reinitialize() {
 	}
 
 	gsc.notificationTokens = append(gsc.notificationTokens, gsc.db.Notify(&qdb.DatabaseNotificationConfig{
-		Type:  "GarageDoor",
-		Field: "OpenTrigger",
-		ContextFields: []string{
-			"Moving",
-		},
-	}, qdb.NewNotificationCallback(gsc.OnOpenTrigger)))
-
-	gsc.notificationTokens = append(gsc.notificationTokens, gsc.db.Notify(&qdb.DatabaseNotificationConfig{
-		Type:  "GarageDoor",
-		Field: "CloseTrigger",
-		ContextFields: []string{
-			"Moving",
-		},
-	}, qdb.NewNotificationCallback(gsc.OnCloseTrigger)))
-
-	gsc.notificationTokens = append(gsc.notificationTokens, gsc.db.Notify(&qdb.DatabaseNotificationConfig{
 		Type:           "GarageDoor",
-		Field:          "GarageDoorStatus",
+		Field:          "IsClosed",
 		NotifyOnChange: true,
 	}, qdb.NewNotificationCallback(gsc.OnGarageDoorStatusChanged)))
 
@@ -90,101 +73,41 @@ func (gsc *GarageStatusCalculator) Reinitialize() {
 }
 
 func (gsc *GarageStatusCalculator) OnGarageDoorStatusChanged(notification *qdb.DatabaseNotification) {
-	status := qdb.ValueCast[*qdb.GarageDoorState](notification.Current.Value)
-
+	isClosed := qdb.ValueCast[*qdb.Bool](notification.Current.Value).Raw
 	door := qdb.NewEntity(gsc.db, notification.Current.Id)
 
-	if status.Raw == qdb.GarageDoorState_CLOSED {
+	if isClosed {
+		door.GetField("Closing").PushBool(false)
 		door.GetField("Moving").PushBool(false)
 		door.GetField("PercentClosed").PushInt(100)
-	} else if status.Raw == qdb.GarageDoorState_OPENED {
+	} else {
 		door.GetField("Moving").PushBool(true)
 	}
 }
 
 func (gsc *GarageStatusCalculator) OnGarageDoorMoving(notification *qdb.DatabaseNotification) {
-	moving := qdb.ValueCast[*qdb.Bool](notification.Current.Value)
-	closing := qdb.ValueCast[*qdb.Bool](notification.Context[0].Value)
-	percentClosed := qdb.ValueCast[*qdb.Int](notification.Context[1].Value)
-	timeToOpen := qdb.ValueCast[*qdb.Int](notification.Context[2].Value)
-	timeToClose := qdb.ValueCast[*qdb.Int](notification.Context[3].Value)
+	moving := qdb.ValueCast[*qdb.Bool](notification.Current.Value).Raw
+	closing := qdb.ValueCast[*qdb.Bool](notification.Context[0].Value).Raw
+	percentClosed := qdb.ValueCast[*qdb.Int](notification.Context[1].Value).Raw
+	timeToOpen := qdb.ValueCast[*qdb.Int](notification.Context[2].Value).Raw
+	timeToClose := qdb.ValueCast[*qdb.Int](notification.Context[3].Value).Raw
 
-	if timeToOpen.Raw == 0 || timeToClose.Raw == 0 {
+	if timeToOpen == 0 || timeToClose == 0 {
 		qdb.Warn("[GarageStatusCalculator::OnGarageDoorMoving] TimeToOpen and/or TimeToClose is 0 for door %s", notification.Current.Id)
 		return
 	}
 
-	if moving.Raw {
+	if moving {
 		gsc.movingGarageDoorContext[notification.Current.Id] = MovingGarageDoorContext{
-			InitialPercentClosed: percentClosed.Raw,
-			PercentClosed:        percentClosed.Raw,
-			Closing:              closing.Raw,
-			TotalTimeToOpen:      timeToOpen.Raw,
-			TotalTimeToClose:     timeToClose.Raw,
+			InitialPercentClosed: percentClosed,
+			PercentClosed:        percentClosed,
+			Closing:              closing,
+			TotalTimeToOpen:      timeToOpen,
+			TotalTimeToClose:     timeToClose,
 			ButtonPressTime:      notification.Current.WriteTime.AsTime(),
 		}
 	} else {
 		delete(gsc.movingGarageDoorContext, notification.Current.Id)
-	}
-}
-
-func (gsc *GarageStatusCalculator) OnOpenTrigger(notification *qdb.DatabaseNotification) {
-	moving := qdb.ValueCast[*qdb.Bool](notification.Context[0].Value)
-
-	door := qdb.NewEntity(gsc.db, notification.Current.Id)
-	if moving.Raw {
-		moving.Raw = false
-		// Set Moving without changing the writetime
-		// This is important because writetime signifies when the button
-		// was originally pressed, and we want to keep that information
-		// to calculate the PercentClosed correctly
-		value, err := anypb.New(moving)
-		if err != nil {
-			qdb.Error("[GarageStatusCalculator::OnCloseTrigger] Failed to create Any from bool: %v", err)
-			return
-		}
-
-		gsc.db.Write([]*qdb.DatabaseRequest{
-			{
-				Id:        door.GetId(),
-				Field:     "Moving",
-				Value:     value,
-				WriteTime: &qdb.Timestamp{Raw: notification.Context[0].WriteTime},
-			},
-		})
-	} else {
-		door.GetField("Closing").PushBool(false)
-		door.GetField("Moving").PushBool(true)
-	}
-}
-
-func (gsc *GarageStatusCalculator) OnCloseTrigger(notification *qdb.DatabaseNotification) {
-	moving := qdb.ValueCast[*qdb.Bool](notification.Context[0].Value)
-
-	door := qdb.NewEntity(gsc.db, notification.Current.Id)
-	if moving.Raw {
-		moving.Raw = false
-		// Set Moving without changing the writetime
-		// This is important because writetime signifies when the button
-		// was originally pressed, and we want to keep that information
-		// to calculate the PercentClosed correctly
-		value, err := anypb.New(moving)
-		if err != nil {
-			qdb.Error("[GarageStatusCalculator::OnCloseTrigger] Failed to create Any from bool: %v", err)
-			return
-		}
-
-		gsc.db.Write([]*qdb.DatabaseRequest{
-			{
-				Id:        door.GetId(),
-				Field:     "Moving",
-				Value:     value,
-				WriteTime: &qdb.Timestamp{Raw: notification.Context[0].WriteTime},
-			},
-		})
-	} else {
-		door.GetField("Closing").PushBool(true)
-		door.GetField("Moving").PushBool(true)
 	}
 }
 
