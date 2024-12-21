@@ -40,14 +40,13 @@ function registerRemoteComponent(app, context) {
     </div>
 </div>`,
         data() {
-            context.qDatabaseInteractor
+            qEntityStore
                 .getEventManager()
-                .addEventListener(DATABASE_EVENTS.CONNECTED, this.onDatabaseConnected.bind(this))
-                .addEventListener(DATABASE_EVENTS.DISCONNECTED, this.onDatabaseDisconnected.bind(this));
+                .addEventListener(Q_STORE_EVENTS.CONNECTED, this.onStoreConnected.bind(this))
+                .addEventListener(Q_STORE_EVENTS.DISCONNECTED, this.onStoreDisconnected.bind(this));
 
             return {
-                database: context.qDatabaseInteractor,
-                isDatabaseConnected: false,
+                
                 garageDoors: [],
                 selectedGarageDoorId: "",
                 isButtonLocked: true,
@@ -87,7 +86,7 @@ function registerRemoteComponent(app, context) {
             },
 
             doorButtonDisabled() {
-                return this.isButtonLocked || !this.isDatabaseConnected || this.garageDoors.length === 0 || !this.selectedGarageDoorId || !this.garageDoors[this.selectedGarageDoorId];
+                return this.isButtonLocked || this.garageDoors.length === 0 || !this.selectedGarageDoorId || !this.garageDoors[this.selectedGarageDoorId];
             },
 
             garageStyle() {
@@ -99,34 +98,34 @@ function registerRemoteComponent(app, context) {
         },
         
         mounted() {
-            if (this.database.isConnected()) {
-                this.onDatabaseConnected();
+            if (qEntityStore.isConnected()) {
+                this.onStoreConnected();
             }
         },
 
         methods: {
-            onDatabaseConnected() {
-                this.isDatabaseConnected = true;
+            onStoreConnected() {
                 
-                this.database
+                
+                qEntityStore
                     .queryAllEntities("GarageDoor")
                     .then(event => this.onQueryAllEntities(event))
                     .catch(error => qError(`[Remote::onDatabaseConnected] ${error}`));
             },
 
-            onDatabaseDisconnected() {
-                this.isDatabaseConnected = false;
+            onStoreDisconnected() {
+                
             },
 
             onDoorButtonPressed() {
                 this.isButtonLocked = true;
                 
-                const value = new proto.qdb.Int();
+                const value = new proto.protobufs.Int();
                 value.setRaw(0);
                 const valueAsAny = new proto.google.protobuf.Any();
                 valueAsAny.pack(value.serializeBinary(), qMessageType(value));
 
-                this.database.write([{
+                qEntityStore.write([{
                     id: this.selectedGarageDoorId,
                     field: "ToggleTrigger",
                     value: valueAsAny
@@ -161,20 +160,20 @@ function registerRemoteComponent(app, context) {
         watch: {
             selectedGarageDoorId: function(newVal) {
                 if (this.notificationTokens.length > 0) {
-                    this.database
+                    qEntityStore
                         .unregisterNotifications(this.notificationTokens.slice())
                         .then(() => this.notificationTokens = [])
                         .catch(error => qError(`[Remote::selectedGarageDoorId] ${error}`));
                 }
 
-                this.database
+                qEntityStore
                     .registerNotifications([
                         { id: newVal, field: "PercentClosed", notifyOnChange: true }
                     ], this.onNotification.bind(this))
                     .then(event => this.onRegisterNotification(event))
                     .catch(error => qError(`[Remote::selectedGarageDoorId] ${error}`));
 
-                this.database
+                qEntityStore
                     .read([
                         { id: newVal, field: "PercentClosed" }
                     ])

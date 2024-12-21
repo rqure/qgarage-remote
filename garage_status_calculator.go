@@ -1,10 +1,16 @@
 package main
 
 import (
+	"context"
 	"math"
 	"time"
 
 	qdb "github.com/rqure/qdb/src"
+	"github.com/rqure/qlib/pkg/app"
+	"github.com/rqure/qlib/pkg/data"
+	"github.com/rqure/qlib/pkg/data/binding"
+	"github.com/rqure/qlib/pkg/data/notification"
+	"github.com/rqure/qlib/pkg/log"
 )
 
 func isApproximatelyEqual(a, b, tolerance float64) bool {
@@ -21,24 +27,24 @@ type MovingGarageDoorContext struct {
 }
 
 type GarageStatusCalculator struct {
-	db                      qdb.IDatabase
+	store                   data.Store
 	isLeader                bool
-	notificationTokens      []qdb.INotificationToken
+	notificationTokens      []data.NotificationToken
 	movingGarageDoorContext map[string]MovingGarageDoorContext
 }
 
-func NewGarageStatusCalculator(db qdb.IDatabase) *GarageStatusCalculator {
+func NewGarageStatusCalculator(store data.Store) *GarageStatusCalculator {
 	return &GarageStatusCalculator{
 		db:                      db,
 		movingGarageDoorContext: make(map[string]MovingGarageDoorContext),
 	}
 }
 
-func (gsc *GarageStatusCalculator) Init() {
+func (gsc *GarageStatusCalculator) Init(context.Context, app.Handle) {
 
 }
 
-func (gsc *GarageStatusCalculator) Deinit() {
+func (gsc *GarageStatusCalculator) Deinit(context.Context) {
 
 }
 
@@ -47,7 +53,7 @@ func (gsc *GarageStatusCalculator) Reinitialize() {
 		token.Unbind()
 	}
 
-	gsc.notificationTokens = []qdb.INotificationToken{}
+	gsc.notificationTokens = []data.NotificationToken{}
 
 	if !gsc.isLeader {
 		return
@@ -57,7 +63,7 @@ func (gsc *GarageStatusCalculator) Reinitialize() {
 		Type:           "GarageDoor",
 		Field:          "IsClosed",
 		NotifyOnChange: true,
-	}, qdb.NewNotificationCallback(gsc.OnGarageDoorStatusChanged)))
+	}, notification.NewCallback(gsc.OnGarageDoorStatusChanged)))
 
 	gsc.notificationTokens = append(gsc.notificationTokens, gsc.db.Notify(&qdb.DatabaseNotificationConfig{
 		Type:           "GarageDoor",
@@ -69,36 +75,36 @@ func (gsc *GarageStatusCalculator) Reinitialize() {
 			"TimeToOpen",
 			"TimeToClose",
 		},
-	}, qdb.NewNotificationCallback(gsc.OnGarageDoorMoving)))
+	}, notification.NewCallback(gsc.OnGarageDoorMoving)))
 }
 
-func (gsc *GarageStatusCalculator) OnGarageDoorStatusChanged(notification *qdb.DatabaseNotification) {
-	isClosed := qdb.ValueCast[*qdb.Bool](notification.Current.Value).Raw
-	door := qdb.NewEntity(gsc.db, notification.Current.Id)
+func (gsc *GarageStatusCalculator) OnGarageDoorStatusChanged(ctx context.Context, notification data.Notification) {
+	isClosed := notification.GetCurrent().GetValue().GetBool()
+	door := binding.NewEntity(ctx, gsc.db, notification.GetCurrent().GetEntityId())
 
 	if isClosed {
-		door.GetField("Closing").PushBool(false)
-		door.GetField("Moving").PushBool(false)
-		door.GetField("PercentClosed").PushInt(100)
+		door.GetField("Closing").WriteBool(ctx, false)
+		door.GetField("Moving").WriteBool(ctx, false)
+		door.GetField("PercentClosed").WriteInt(ctx, 100)
 	} else {
-		door.GetField("Moving").PushBool(true)
+		door.GetField("Moving").WriteBool(ctx, true)
 	}
 }
 
-func (gsc *GarageStatusCalculator) OnGarageDoorMoving(notification *qdb.DatabaseNotification) {
-	moving := qdb.ValueCast[*qdb.Bool](notification.Current.Value).Raw
-	closing := qdb.ValueCast[*qdb.Bool](notification.Context[0].Value).Raw
-	percentClosed := qdb.ValueCast[*qdb.Int](notification.Context[1].Value).Raw
-	timeToOpen := qdb.ValueCast[*qdb.Int](notification.Context[2].Value).Raw
-	timeToClose := qdb.ValueCast[*qdb.Int](notification.Context[3].Value).Raw
+func (gsc *GarageStatusCalculator) OnGarageDoorMoving(ctx context.Context, notification data.Notification) {
+	moving := notification.GetCurrent().GetValue().GetBool()
+	closing := notification.GetContext(0).GetValue().GetBool()
+	percentClosed := notification.GetContext(1).GetValue().GetInt()
+	timeToOpen := notification.GetContext(2).GetValue().GetInt()
+	timeToClose := notification.GetContext(3).GetValue().GetInt()
 
 	if timeToOpen == 0 || timeToClose == 0 {
-		qdb.Warn("[GarageStatusCalculator::OnGarageDoorMoving] TimeToOpen and/or TimeToClose is 0 for door %s", notification.Current.Id)
+		log.Warn("TimeToOpen and/or TimeToClose is 0 for door %s", notification.GetCurrent().GetEntityId())
 		return
 	}
 
 	if moving {
-		gsc.movingGarageDoorContext[notification.Current.Id] = MovingGarageDoorContext{
+		gsc.movingGarageDoorContext[notification.GetCurrent().GetEntityId()] = MovingGarageDoorContext{
 			InitialPercentClosed: percentClosed,
 			PercentClosed:        percentClosed,
 			Closing:              closing,
@@ -107,7 +113,7 @@ func (gsc *GarageStatusCalculator) OnGarageDoorMoving(notification *qdb.Database
 			ButtonPressTime:      notification.Current.WriteTime.AsTime(),
 		}
 	} else {
-		delete(gsc.movingGarageDoorContext, notification.Current.Id)
+		delete(gsc.movingGarageDoorContext, notification.GetCurrent().GetEntityId())
 	}
 }
 
@@ -115,13 +121,13 @@ func (gsc *GarageStatusCalculator) OnSchemaUpdated() {
 	gsc.Reinitialize()
 }
 
-func (gsc *GarageStatusCalculator) OnBecameLeader() {
+func (gsc *GarageStatusCalculator) OnBecameLeader(context.Context) {
 	gsc.isLeader = true
 
 	gsc.Reinitialize()
 }
 
-func (gsc *GarageStatusCalculator) OnLostLeadership() {
+func (gsc *GarageStatusCalculator) OnLostLeadership(context.Context) {
 	gsc.isLeader = false
 
 	for _, token := range gsc.notificationTokens {
@@ -129,7 +135,7 @@ func (gsc *GarageStatusCalculator) OnLostLeadership() {
 	}
 }
 
-func (gsc *GarageStatusCalculator) DoWork() {
+func (gsc *GarageStatusCalculator) DoWork(context.Context) {
 	if !gsc.isLeader {
 		return
 	}
@@ -157,13 +163,13 @@ func (gsc *GarageStatusCalculator) DoWork() {
 			percentClosed = float64(remainingTimeToOpen) / float64(movingGarageDoor.TotalTimeToOpen) * float64(100)
 		}
 
-		door := qdb.NewEntity(gsc.db, doorId)
+		door := binding.NewEntity(ctx, gsc.db, doorId)
 		movingGarageDoor.PercentClosed = int64(percentClosed)
-		door.GetField("PercentClosed").PushInt(movingGarageDoor.PercentClosed)
+		door.GetField("PercentClosed").WriteInt(ctx, movingGarageDoor.PercentClosed)
 
 		if isApproximatelyEqual(percentClosed, 0.0, 1.0/float64(movingGarageDoor.TotalTimeToOpen)) ||
 			isApproximatelyEqual(percentClosed, 100.0, 1.0/float64(movingGarageDoor.TotalTimeToClose)) {
-			door.GetField("Moving").PushBool(false)
+			door.GetField("Moving").WriteBool(ctx, false)
 		}
 	}
 }

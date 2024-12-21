@@ -2,7 +2,7 @@ async function main() {
     const app = Vue.createApp({});
     
     const context = {
-        qDatabaseInteractor: new DatabaseInteractor({
+        qEntityStore: QEntityStore({
             port: ":20000",
         }),
     };
@@ -11,7 +11,7 @@ async function main() {
 
     app.mount('#desktop');
 
-    context.qDatabaseInteractor.runInBackground(true);
+    qEntityStore.runInBackground(true);
 
     CURRENT_LOG_LEVEL=LOG_LEVELS.DEBUG;
 }

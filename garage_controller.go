@@ -1,26 +1,32 @@
 package main
 
 import (
+	"context"
+
 	qdb "github.com/rqure/qdb/src"
+	"github.com/rqure/qlib/pkg/app"
+	"github.com/rqure/qlib/pkg/data"
+	"github.com/rqure/qlib/pkg/data/binding"
+	"github.com/rqure/qlib/pkg/data/notification"
 )
 
 type GarageController struct {
-	db                 qdb.IDatabase
+	store              data.Store
 	isLeader           bool
-	notificationTokens []qdb.INotificationToken
+	notificationTokens []data.NotificationToken
 }
 
-func NewGarageController(db qdb.IDatabase) *GarageController {
+func NewGarageController(store data.Store) *GarageController {
 	return &GarageController{
 		db: db,
 	}
 }
 
-func (gc *GarageController) Init() {
+func (gc *GarageController) Init(context.Context, app.Handle) {
 
 }
 
-func (gc *GarageController) Deinit() {
+func (gc *GarageController) Deinit(context.Context) {
 
 }
 
@@ -29,51 +35,52 @@ func (gc *GarageController) Reinitialize() {
 		token.Unbind()
 	}
 
-	gc.notificationTokens = []qdb.INotificationToken{}
+	gc.notificationTokens = []data.NotificationToken{}
 
 	if !gc.isLeader {
 		return
 	}
 
-	gc.notificationTokens = append(gc.notificationTokens, gc.db.Notify(&qdb.DatabaseNotificationConfig{
-		Type:          "GarageDoor",
-		Field:         "ToggleTrigger",
-		ContextFields: []string{"Closing", "Moving"},
-	}, qdb.NewNotificationCallback(gc.OnToggleTrigger)))
+	gc.notificationTokens = append(gc.notificationTokens, gc.db.Notify(
+ctx,
+notification.NewConfig().
+SetEntityType(        "GarageDoor").
+SetFieldName(        "ToggleTrigger"),
+	}, notification.NewCallback(gc.OnToggleTrigger)))
 }
 
 func (gc *GarageController) OnSchemaUpdated() {
 	gc.Reinitialize()
 }
 
-func (gc *GarageController) OnBecameLeader() {
+func (gc *GarageController) OnBecameLeader(context.Context) {
 	gc.isLeader = true
 	gc.Reinitialize()
 }
 
-func (gc *GarageController) OnLostLeadership() {
+func (gc *GarageController) OnLostLeadership(context.Context) {
 	gc.isLeader = false
 
 	for _, token := range gc.notificationTokens {
 		token.Unbind()
 	}
 
-	gc.notificationTokens = []qdb.INotificationToken{}
+	gc.notificationTokens = []data.NotificationToken{}
 }
 
-func (gc *GarageController) DoWork() {
+func (gc *GarageController) DoWork(context.Context) {
 }
 
-func (gc *GarageController) OnStatusDeviceChanged(notification *qdb.DatabaseNotification) {
+func (gc *GarageController) OnStatusDeviceChanged(ctx context.Context, notification data.Notification) {
 	gc.Reinitialize()
 }
 
-func (gc *GarageController) OnToggleTrigger(notification *qdb.DatabaseNotification) {
-	door := qdb.NewEntity(gc.db, notification.GetCurrent().Id)
-	door.GetField("ToggleTriggerFn").PushInt()
+func (gc *GarageController) OnToggleTrigger(ctx context.Context, notification data.Notification) {
+	door := binding.NewEntity(ctx, gc.db, notification.GetCurrent().Id)
+	door.GetField("ToggleTriggerFn").WriteInt(ctx)
 
-	closing := qdb.ValueCast[*qdb.Bool](notification.Context[0].Value).Raw
-	moving := qdb.ValueCast[*qdb.Bool](notification.Context[1].Value).Raw
+	closing := notification.GetContext(0).GetValue().GetBool()
+	moving := notification.GetContext(1).GetValue().GetBool()
 
 	moving = !moving
 
@@ -81,7 +88,7 @@ func (gc *GarageController) OnToggleTrigger(notification *qdb.DatabaseNotificati
 		closing = !closing
 	}
 
-	door.GetField("Closing").PushBool(closing)
+	door.GetField("Closing").WriteBool(ctx, closing)
 
 	if !moving {
 		gc.db.Write([]*qdb.DatabaseRequest{
@@ -93,6 +100,6 @@ func (gc *GarageController) OnToggleTrigger(notification *qdb.DatabaseNotificati
 			},
 		})
 	} else {
-		door.GetField("Moving").PushBool(moving)
+		door.GetField("Moving").WriteBool(ctx, moving)
 	}
 }
