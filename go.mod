@@ -7,7 +7,7 @@ require (
 	google.golang.org/protobuf v1.36.0 // indirect
 )
 
-require github.com/rqure/qlib v0.0.31
+require github.com/rqure/qlib v0.0.32
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
