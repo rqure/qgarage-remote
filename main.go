@@ -3,13 +3,12 @@ package main
 import (
 	"os"
 
-	qdb "github.com/rqure/qdb/src"
 	"github.com/rqure/qlib/pkg/app"
 	"github.com/rqure/qlib/pkg/app/workers"
 	"github.com/rqure/qlib/pkg/data/store"
 )
 
-func getDatabaseAddress() string {
+func getStoreAddress() string {
 	addr := os.Getenv("Q_ADDR")
 	if addr == "" {
 		addr = "ws://webgateway:20000/ws"
@@ -28,17 +27,17 @@ func getWebServiceAddress() string {
 }
 
 func main() {
-	db := store.NewWeb(store.WebConfig{
-		Address: getDatabaseAddress(),
+	s := store.NewWeb(store.WebConfig{
+		Address: getStoreAddress(),
 	})
 
-	storeWorker := workers.NewStore(db)
-	webServiceWorker := qdb.NewWebServiceWorker(getWebServiceAddress())
-	leadershipWorker := workers.NewLeadership(db)
+	storeWorker := workers.NewStore(s)
+	webServiceWorker := workers.NewWeb(getWebServiceAddress())
+	leadershipWorker := workers.NewLeadership(s)
 	schemaValidator := leadershipWorker.GetEntityFieldValidator()
-	garageController := NewGarageController(db)
-	ttsController := NewTTSController(db)
-	garageStatusCalculator := NewGarageStatusCalculator(db)
+	garageController := NewGarageController(s)
+	ttsController := NewTTSController(s)
+	garageStatusCalculator := NewGarageStatusCalculator(s)
 
 	schemaValidator.RegisterEntityFields("GarageController",
 		"OpenTTS", "CloseTTS", "OpenReminderTTS", "OpenReminderInterval")
@@ -52,9 +51,6 @@ func main() {
 
 	storeWorker.Connected.Connect(leadershipWorker.OnStoreConnected)
 	storeWorker.Disconnected.Connect(leadershipWorker.OnStoreDisconnected)
-	storeWorker.SchemaUpdated.Connect(garageController.OnSchemaUpdated)
-	storeWorker.SchemaUpdated.Connect(ttsController.OnSchemaUpdated)
-	storeWorker.SchemaUpdated.Connect(garageStatusCalculator.OnSchemaUpdated)
 
 	leadershipWorker.BecameLeader().Connect(garageController.OnBecameLeader)
 	leadershipWorker.BecameLeader().Connect(ttsController.OnBecameLeader)
@@ -63,20 +59,12 @@ func main() {
 	leadershipWorker.LosingLeadership().Connect(ttsController.OnLostLeadership)
 	leadershipWorker.LosingLeadership().Connect(garageStatusCalculator.OnLostLeadership)
 
-	// Create a new application configuration
-	config := qdb.ApplicationConfig{
-		Name: "garage",
-		Workers: []qdb.IWorker{
-			storeWorker,
-			webServiceWorker,
-			leadershipWorker,
-			garageController,
-			ttsController,
-			garageStatusCalculator,
-		},
-	}
-
-	app := app.NewApplication(config)
-
-	app.Execute()
+	a := app.NewApplication("garage")
+	a.AddWorker(storeWorker)
+	a.AddWorker(webServiceWorker)
+	a.AddWorker(leadershipWorker)
+	a.AddWorker(garageController)
+	a.AddWorker(ttsController)
+	a.AddWorker(garageStatusCalculator)
+	a.Execute()
 }

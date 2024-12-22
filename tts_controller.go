@@ -32,7 +32,7 @@ type TTSController struct {
 
 func NewTTSController(store data.Store) *TTSController {
 	return &TTSController{
-		db:                   db,
+		store:                store,
 		lastDoorOpenReminder: make(map[string]time.Time),
 		openReminderInterval: 5 * time.Minute,
 	}
@@ -46,61 +46,68 @@ func (tc *TTSController) Deinit(context.Context) {
 
 }
 
-func (tc *TTSController) Reinitialize() {
+func (tc *TTSController) Reinitialize(ctx context.Context) {
 	for _, token := range tc.notificationTokens {
-		token.Unbind()
+		token.Unbind(ctx)
 	}
 
 	tc.notificationTokens = []data.NotificationToken{}
 
-	tc.notificationTokens = append(tc.notificationTokens, tc.db.Notify(&qdb.DatabaseNotificationConfig{
-		Type:           "GarageDoor",
-		Field:          "IsClosed",
-		NotifyOnChange: true,
-	}, notification.NewCallback(tc.OnGarageDoorStatusChanged)))
+	tc.notificationTokens = append(tc.notificationTokens, tc.store.Notify(
+		ctx,
+		notification.NewConfig().
+			SetEntityType("Root").
+			SetFieldName("SchemaUpdateTrigger"),
+		notification.NewCallback(tc.OnSchemaUpdated)))
 
-	tc.notificationTokens = append(tc.notificationTokens, tc.db.Notify(
+	tc.notificationTokens = append(tc.notificationTokens, tc.store.Notify(
+		ctx,
+		notification.NewConfig().
+			SetEntityType("GarageDoor").
+			SetFieldName("IsClosed").
+			SetNotifyOnChange(true),
+		notification.NewCallback(tc.OnGarageDoorStatusChanged)))
+
+	tc.notificationTokens = append(tc.notificationTokens, tc.store.Notify(
 		ctx,
 		notification.NewConfig().
 			SetEntityType("GarageController").
-			SetFieldName("OpenReminderInterval"), notification.NewCallback(tc.OnOpenReminderIntervalChanged)))
+			SetFieldName("OpenReminderInterval"),
+		notification.NewCallback(tc.OnOpenReminderIntervalChanged)))
 
-	garageControllers := query.New(tc.db).Find(qdb.SearchCriteria{
-		EntityType: "GarageController",
-		Conditions: []qdb.FieldConditionEval{},
-	})
+	garageControllers := query.New(tc.store).ForType("GarageController").Execute(ctx)
 
 	for _, garageController := range garageControllers {
 		tc.openReminderInterval = time.Duration(garageController.GetField("OpenReminderInterval").ReadInt(ctx)) * time.Minute
 	}
 }
 
-func (tc *TTSController) OnSchemaUpdated() {
-	tc.Reinitialize()
+func (tc *TTSController) OnSchemaUpdated(ctx context.Context, n data.Notification) {
+	tc.Reinitialize(ctx)
 }
 
-func (tc *TTSController) OnBecameLeader(context.Context) {
+func (tc *TTSController) OnBecameLeader(ctx context.Context) {
 	tc.isLeader = true
 
-	tc.Reinitialize()
+	tc.Reinitialize(ctx)
 }
 
-func (tc *TTSController) OnLostLeadership(context.Context) {
+func (tc *TTSController) OnLostLeadership(ctx context.Context) {
 	tc.isLeader = false
 
 	for _, token := range tc.notificationTokens {
-		token.Unbind()
+		token.Unbind(ctx)
 	}
 }
 
-func (tc *TTSController) DoWork(context.Context) {
+func (tc *TTSController) DoWork(ctx context.Context) {
 	if !tc.isLeader {
 		return
 	}
 
 	for doorName, lastReminder := range tc.lastDoorOpenReminder {
 		if time.Since(lastReminder) > tc.openReminderInterval {
-			tc.DoTTS(doorName, OpenReminderTTS)
+			tc.DoTTS(ctx, doorName, OpenReminderTTS)
 			tc.lastDoorOpenReminder[doorName] = time.Now()
 		}
 	}
@@ -109,31 +116,28 @@ func (tc *TTSController) DoWork(context.Context) {
 func (tc *TTSController) OnGarageDoorStatusChanged(ctx context.Context, notification data.Notification) {
 	isClosed := notification.GetCurrent().GetValue().GetBool()
 
-	doorName := binding.NewEntity(ctx, tc.db, notification.GetCurrent().GetEntityId()).GetName()
+	doorName := binding.NewEntity(ctx, tc.store, notification.GetCurrent().GetEntityId()).GetName()
 	if !isClosed {
 		tc.lastDoorOpenReminder[doorName] = time.Now()
-		tc.DoTTS(doorName, OpenTTS)
+		tc.DoTTS(ctx, doorName, OpenTTS)
 	} else {
 		delete(tc.lastDoorOpenReminder, doorName)
-		tc.DoTTS(doorName, CloseTTS)
+		tc.DoTTS(ctx, doorName, CloseTTS)
 	}
 }
 
-func (tc *TTSController) OnOpenReminderIntervalChanged(ctx context.Context, notification data.Notification) {
-	interval := qdb.ValueCast[*qdb.Int](notification.GetCurrent().GetValue())
+func (tc *TTSController) OnOpenReminderIntervalChanged(ctx context.Context, n data.Notification) {
+	interval := n.GetCurrent().GetValue().GetInt()
 
-	if interval.Raw < 1 {
-		interval.Raw = 1
+	if interval < 1 {
+		interval = 1
 	}
 
-	tc.openReminderInterval = time.Duration(interval.Raw) * time.Minute
+	tc.openReminderInterval = time.Duration(interval) * time.Minute
 }
 
-func (tc *TTSController) DoTTS(doorName string, ttsType TTSType) {
-	garageControllers := query.New(tc.db).Find(qdb.SearchCriteria{
-		EntityType: "GarageController",
-		Conditions: []qdb.FieldConditionEval{},
-	})
+func (tc *TTSController) DoTTS(ctx context.Context, doorName string, ttsType TTSType) {
+	garageControllers := query.New(tc.store).ForType("GarageController").Execute(ctx)
 
 	for _, garageController := range garageControllers {
 		tts := garageController.GetField(string(ttsType)).ReadString(ctx)
@@ -146,39 +150,14 @@ func (tc *TTSController) DoTTS(doorName string, ttsType TTSType) {
 		tts = strings.ReplaceAll(tts, "{Door}", doorName)
 
 		// Perform TTS
-		alertControllers := query.New(tc.db).Find(qdb.SearchCriteria{
-			EntityType: "AlertController",
-			Conditions: []qdb.FieldConditionEval{},
-		})
-
+		multi := binding.NewMulti(tc.store)
+		alertControllers := query.New(multi).ForType("AlertController").Execute(ctx)
 		for _, alertController := range alertControllers {
-			tc.db.Write([]*qdb.DatabaseRequest{
-				{
-					Id:    alertController.GetId(),
-					Field: "ApplicationName",
-					Value: qdb.NewStringValue(qdb.GetApplicationName()),
-				},
-				{
-					Id:    alertController.GetId(),
-					Field: "Description",
-					Value: qdb.NewStringValue(tts),
-				},
-				{
-					Id:    alertController.GetId(),
-					Field: "TTSAlert",
-					Value: qdb.NewBoolValue(strings.Contains(os.Getenv("ALERTS"), "TTS")),
-				},
-				{
-					Id:    alertController.GetId(),
-					Field: "EmailAlert",
-					Value: qdb.NewBoolValue(strings.Contains(os.Getenv("ALERTS"), "EMAIL")),
-				},
-				{
-					Id:    alertController.GetId(),
-					Field: "SendTrigger",
-					Value: qdb.NewIntValue(0),
-				},
-			})
+			alertController.GetField("ApplicationName").WriteString(ctx, qdb.GetApplicationName())
+			alertController.GetField("Description").WriteString(ctx, tts)
+			alertController.GetField("TTSAlert").WriteBool(ctx, strings.Contains(os.Getenv("ALERTS"), "TTS"))
+			alertController.GetField("EmailAlert").WriteBool(ctx, strings.Contains(os.Getenv("ALERTS"), "EMAIL"))
+			alertController.GetField("SendTrigger").WriteInt(ctx)
 		}
 	}
 }

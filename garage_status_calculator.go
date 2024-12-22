@@ -5,7 +5,6 @@ import (
 	"math"
 	"time"
 
-	qdb "github.com/rqure/qdb/src"
 	"github.com/rqure/qlib/pkg/app"
 	"github.com/rqure/qlib/pkg/data"
 	"github.com/rqure/qlib/pkg/data/binding"
@@ -35,7 +34,7 @@ type GarageStatusCalculator struct {
 
 func NewGarageStatusCalculator(store data.Store) *GarageStatusCalculator {
 	return &GarageStatusCalculator{
-		db:                      db,
+		store:                   store,
 		movingGarageDoorContext: make(map[string]MovingGarageDoorContext),
 	}
 }
@@ -48,9 +47,9 @@ func (gsc *GarageStatusCalculator) Deinit(context.Context) {
 
 }
 
-func (gsc *GarageStatusCalculator) Reinitialize() {
+func (gsc *GarageStatusCalculator) Reinitialize(ctx context.Context) {
 	for _, token := range gsc.notificationTokens {
-		token.Unbind()
+		token.Unbind(ctx)
 	}
 
 	gsc.notificationTokens = []data.NotificationToken{}
@@ -59,28 +58,39 @@ func (gsc *GarageStatusCalculator) Reinitialize() {
 		return
 	}
 
-	gsc.notificationTokens = append(gsc.notificationTokens, gsc.db.Notify(&qdb.DatabaseNotificationConfig{
-		Type:           "GarageDoor",
-		Field:          "IsClosed",
-		NotifyOnChange: true,
-	}, notification.NewCallback(gsc.OnGarageDoorStatusChanged)))
+	gsc.notificationTokens = append(gsc.notificationTokens, gsc.store.Notify(
+		ctx,
+		notification.NewConfig().
+			SetEntityType("Root").
+			SetFieldName("SchemaUpdateTrigger"),
+		notification.NewCallback(gsc.OnSchemaUpdated)))
 
-	gsc.notificationTokens = append(gsc.notificationTokens, gsc.db.Notify(&qdb.DatabaseNotificationConfig{
-		Type:           "GarageDoor",
-		Field:          "Moving",
-		NotifyOnChange: true,
-		ContextFields: []string{
-			"Closing",
-			"PercentClosed",
-			"TimeToOpen",
-			"TimeToClose",
-		},
-	}, notification.NewCallback(gsc.OnGarageDoorMoving)))
+	gsc.notificationTokens = append(gsc.notificationTokens, gsc.store.Notify(
+		ctx,
+		notification.NewConfig().
+			SetEntityType("GarageDoor").
+			SetFieldName("IsClosed").
+			SetNotifyOnChange(true),
+		notification.NewCallback(gsc.OnGarageDoorStatusChanged)))
+
+	gsc.notificationTokens = append(gsc.notificationTokens, gsc.store.Notify(
+		ctx,
+		notification.NewConfig().
+			SetEntityType("GarageDoor").
+			SetFieldName("Moving").
+			SetNotifyOnChange(true).
+			SetContextFields(
+				"Closing",
+				"PercentClosed",
+				"TimeToOpen",
+				"TimeToClose",
+			),
+		notification.NewCallback(gsc.OnGarageDoorMoving)))
 }
 
 func (gsc *GarageStatusCalculator) OnGarageDoorStatusChanged(ctx context.Context, notification data.Notification) {
 	isClosed := notification.GetCurrent().GetValue().GetBool()
-	door := binding.NewEntity(ctx, gsc.db, notification.GetCurrent().GetEntityId())
+	door := binding.NewEntity(ctx, gsc.store, notification.GetCurrent().GetEntityId())
 
 	if isClosed {
 		door.GetField("Closing").WriteBool(ctx, false)
@@ -110,32 +120,32 @@ func (gsc *GarageStatusCalculator) OnGarageDoorMoving(ctx context.Context, notif
 			Closing:              closing,
 			TotalTimeToOpen:      timeToOpen,
 			TotalTimeToClose:     timeToClose,
-			ButtonPressTime:      notification.Current.WriteTime.AsTime(),
+			ButtonPressTime:      notification.GetCurrent().GetWriteTime(),
 		}
 	} else {
 		delete(gsc.movingGarageDoorContext, notification.GetCurrent().GetEntityId())
 	}
 }
 
-func (gsc *GarageStatusCalculator) OnSchemaUpdated() {
-	gsc.Reinitialize()
+func (gsc *GarageStatusCalculator) OnSchemaUpdated(ctx context.Context, n data.Notification) {
+	gsc.Reinitialize(ctx)
 }
 
-func (gsc *GarageStatusCalculator) OnBecameLeader(context.Context) {
+func (gsc *GarageStatusCalculator) OnBecameLeader(ctx context.Context) {
 	gsc.isLeader = true
 
-	gsc.Reinitialize()
+	gsc.Reinitialize(ctx)
 }
 
-func (gsc *GarageStatusCalculator) OnLostLeadership(context.Context) {
+func (gsc *GarageStatusCalculator) OnLostLeadership(ctx context.Context) {
 	gsc.isLeader = false
 
 	for _, token := range gsc.notificationTokens {
-		token.Unbind()
+		token.Unbind(ctx)
 	}
 }
 
-func (gsc *GarageStatusCalculator) DoWork(context.Context) {
+func (gsc *GarageStatusCalculator) DoWork(ctx context.Context) {
 	if !gsc.isLeader {
 		return
 	}
@@ -163,7 +173,7 @@ func (gsc *GarageStatusCalculator) DoWork(context.Context) {
 			percentClosed = float64(remainingTimeToOpen) / float64(movingGarageDoor.TotalTimeToOpen) * float64(100)
 		}
 
-		door := binding.NewEntity(ctx, gsc.db, doorId)
+		door := binding.NewEntity(ctx, gsc.store, doorId)
 		movingGarageDoor.PercentClosed = int64(percentClosed)
 		door.GetField("PercentClosed").WriteInt(ctx, movingGarageDoor.PercentClosed)
 

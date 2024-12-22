@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 
-	qdb "github.com/rqure/qdb/src"
 	"github.com/rqure/qlib/pkg/app"
 	"github.com/rqure/qlib/pkg/data"
 	"github.com/rqure/qlib/pkg/data/binding"
@@ -18,7 +17,7 @@ type GarageController struct {
 
 func NewGarageController(store data.Store) *GarageController {
 	return &GarageController{
-		db: db,
+		store: store,
 	}
 }
 
@@ -30,9 +29,9 @@ func (gc *GarageController) Deinit(context.Context) {
 
 }
 
-func (gc *GarageController) Reinitialize() {
+func (gc *GarageController) Reinitialize(ctx context.Context) {
 	for _, token := range gc.notificationTokens {
-		token.Unbind()
+		token.Unbind(ctx)
 	}
 
 	gc.notificationTokens = []data.NotificationToken{}
@@ -41,28 +40,35 @@ func (gc *GarageController) Reinitialize() {
 		return
 	}
 
-	gc.notificationTokens = append(gc.notificationTokens, gc.db.Notify(
-ctx,
-notification.NewConfig().
-SetEntityType(        "GarageDoor").
-SetFieldName(        "ToggleTrigger"),
-	}, notification.NewCallback(gc.OnToggleTrigger)))
+	gc.notificationTokens = append(gc.notificationTokens, gc.store.Notify(
+		ctx,
+		notification.NewConfig().
+			SetEntityType("Root").
+			SetFieldName("SchemaUpdateTrigger"),
+		notification.NewCallback(gc.OnSchemaUpdated)))
+
+	gc.notificationTokens = append(gc.notificationTokens, gc.store.Notify(
+		ctx,
+		notification.NewConfig().
+			SetEntityType("GarageDoor").
+			SetFieldName("ToggleTrigger"),
+		notification.NewCallback(gc.OnToggleTrigger)))
 }
 
-func (gc *GarageController) OnSchemaUpdated() {
-	gc.Reinitialize()
+func (gc *GarageController) OnSchemaUpdated(ctx context.Context, n data.Notification) {
+	gc.Reinitialize(ctx)
 }
 
-func (gc *GarageController) OnBecameLeader(context.Context) {
+func (gc *GarageController) OnBecameLeader(ctx context.Context) {
 	gc.isLeader = true
-	gc.Reinitialize()
+	gc.Reinitialize(ctx)
 }
 
-func (gc *GarageController) OnLostLeadership(context.Context) {
+func (gc *GarageController) OnLostLeadership(ctx context.Context) {
 	gc.isLeader = false
 
 	for _, token := range gc.notificationTokens {
-		token.Unbind()
+		token.Unbind(ctx)
 	}
 
 	gc.notificationTokens = []data.NotificationToken{}
@@ -71,16 +77,16 @@ func (gc *GarageController) OnLostLeadership(context.Context) {
 func (gc *GarageController) DoWork(context.Context) {
 }
 
-func (gc *GarageController) OnStatusDeviceChanged(ctx context.Context, notification data.Notification) {
-	gc.Reinitialize()
+func (gc *GarageController) OnStatusDeviceChanged(ctx context.Context, n data.Notification) {
+	gc.Reinitialize(ctx)
 }
 
-func (gc *GarageController) OnToggleTrigger(ctx context.Context, notification data.Notification) {
-	door := binding.NewEntity(ctx, gc.db, notification.GetCurrent().Id)
+func (gc *GarageController) OnToggleTrigger(ctx context.Context, n data.Notification) {
+	door := binding.NewEntity(ctx, gc.store, n.GetCurrent().GetEntityId())
 	door.GetField("ToggleTriggerFn").WriteInt(ctx)
 
-	closing := notification.GetContext(0).GetValue().GetBool()
-	moving := notification.GetContext(1).GetValue().GetBool()
+	closing := n.GetContext(0).GetValue().GetBool()
+	moving := n.GetContext(1).GetValue().GetBool()
 
 	moving = !moving
 
@@ -91,14 +97,7 @@ func (gc *GarageController) OnToggleTrigger(ctx context.Context, notification da
 	door.GetField("Closing").WriteBool(ctx, closing)
 
 	if !moving {
-		gc.db.Write([]*qdb.DatabaseRequest{
-			{
-				Id:        door.GetId(),
-				Field:     "Moving",
-				Value:     qdb.NewBoolValue(moving),
-				WriteTime: &qdb.Timestamp{Raw: notification.Context[1].WriteTime},
-			},
-		})
+		door.GetField("Moving").WriteBool(ctx, moving, n.GetContext(1).GetWriteTime())
 	} else {
 		door.GetField("Moving").WriteBool(ctx, moving)
 	}
