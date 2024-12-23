@@ -155,6 +155,7 @@ func (tc *TTSController) DoTTS(ctx context.Context, doorName string, ttsType TTS
 		for _, alertController := range alertControllers {
 			alertController.GetField("ApplicationName").WriteString(ctx, qdb.GetApplicationName())
 			alertController.GetField("Description").WriteString(ctx, tts)
+			alertController.GetField("TTSLanguage").WriteString(ctx, "en") // TODO: Get this from the store
 			alertController.GetField("TTSAlert").WriteBool(ctx, strings.Contains(os.Getenv("ALERTS"), "TTS"))
 			alertController.GetField("EmailAlert").WriteBool(ctx, strings.Contains(os.Getenv("ALERTS"), "EMAIL"))
 			alertController.GetField("SendTrigger").WriteInt(ctx)
