@@ -4,10 +4,10 @@ go 1.22.7
 
 require (
 	github.com/rqure/qdb v1.2.87
-	google.golang.org/protobuf v1.36.0 // indirect
+	google.golang.org/protobuf v1.36.1 // indirect
 )
 
-require github.com/rqure/qlib v0.0.32
+require github.com/rqure/qlib v0.0.33
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
