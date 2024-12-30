@@ -75,10 +75,13 @@ func (tc *TTSController) Reinitialize(ctx context.Context) {
 			SetFieldName("OpenReminderInterval"),
 		notification.NewCallback(tc.OnOpenReminderIntervalChanged)))
 
-	garageControllers := query.New(tc.store).ForType("GarageController").Execute(ctx)
+	garageControllers := query.New(tc.store).
+		Select("OpenReminderInterval").
+		From("GarageController").
+		Execute(ctx)
 
 	for _, garageController := range garageControllers {
-		tc.openReminderInterval = time.Duration(garageController.GetField("OpenReminderInterval").ReadInt(ctx)) * time.Minute
+		tc.openReminderInterval = time.Duration(garageController.GetField("OpenReminderInterval").GetInt()) * time.Minute
 	}
 }
 
@@ -137,10 +140,15 @@ func (tc *TTSController) OnOpenReminderIntervalChanged(ctx context.Context, n da
 }
 
 func (tc *TTSController) DoTTS(ctx context.Context, doorName string, ttsType TTSType) {
-	garageControllers := query.New(tc.store).ForType("GarageController").Execute(ctx)
+	field := string(ttsType)
+
+	garageControllers := query.New(tc.store).
+		Select(field).
+		From("GarageController").
+		Execute(ctx)
 
 	for _, garageController := range garageControllers {
-		tts := garageController.GetField(string(ttsType)).ReadString(ctx)
+		tts := garageController.GetField(field).GetString()
 
 		if tts == "" {
 			return
@@ -150,15 +158,20 @@ func (tc *TTSController) DoTTS(ctx context.Context, doorName string, ttsType TTS
 		tts = strings.ReplaceAll(tts, "{Door}", doorName)
 
 		// Perform TTS
-		multi := binding.NewMulti(tc.store)
-		alertControllers := query.New(multi).ForType("AlertController").Execute(ctx)
+		alertControllers := query.New(tc.store).
+			Select().
+			From("AlertController").
+			Execute(ctx)
+
 		for _, alertController := range alertControllers {
-			alertController.GetField("ApplicationName").WriteString(ctx, qdb.GetApplicationName())
-			alertController.GetField("Description").WriteString(ctx, tts)
-			alertController.GetField("TTSLanguage").WriteString(ctx, "en") // TODO: Get this from the store
-			alertController.GetField("TTSAlert").WriteBool(ctx, strings.Contains(os.Getenv("ALERTS"), "TTS"))
-			alertController.GetField("EmailAlert").WriteBool(ctx, strings.Contains(os.Getenv("ALERTS"), "EMAIL"))
-			alertController.GetField("SendTrigger").WriteInt(ctx)
+			alertController.DoMulti(ctx, func(alertController data.EntityBinding) {
+				alertController.GetField("ApplicationName").WriteString(ctx, qdb.GetApplicationName())
+				alertController.GetField("Description").WriteString(ctx, tts)
+				alertController.GetField("TTSLanguage").WriteString(ctx, "en")
+				alertController.GetField("TTSAlert").WriteBool(ctx, strings.Contains(os.Getenv("ALERTS"), "TTS"))
+				alertController.GetField("EmailAlert").WriteBool(ctx, strings.Contains(os.Getenv("ALERTS"), "EMAIL"))
+				alertController.GetField("SendTrigger").WriteInt(ctx)
+			})
 		}
 	}
 }
